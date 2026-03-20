@@ -159,6 +159,20 @@ async function submitImport() {
   importLoading.value = false
 }
 
+function handleImportKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (!canSubmitImport.value) {
+    return
+  }
+
+  void submitImport()
+}
+
 function removeAccount(account: AccountListItem) {
   Modal.confirm({
     title: '确认删除账号',
@@ -256,8 +270,7 @@ function getTokenState(account: AccountListItem) {
               v-model:value="importText"
               :rows="14"
               placeholder="user@example.com----password----client-id----refresh-token"
-              @keydown.ctrl.enter.prevent="submitImport"
-              @keydown.meta.enter.prevent="submitImport"
+              @keydown="handleImportKeydown"
             />
           </AFormItem>
         </AForm>
