@@ -193,7 +193,23 @@ code {
 }
 
 .import-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
   margin-top: 2px;
+}
+
+.import-action-button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.import-action-button.ant-btn {
+  padding-inline: 10px;
+}
+
+.import-file-input {
+  display: none;
 }
 
 .import-result__desc {
@@ -490,6 +506,14 @@ code {
   .message-header__actions,
   .page-toolbar {
     align-items: stretch;
+  }
+
+  .import-actions {
+    gap: 8px;
+  }
+
+  .import-action-button.ant-btn {
+    padding-inline: 6px;
   }
 
   .page-toolbar__field {

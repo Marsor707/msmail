@@ -19,6 +19,7 @@ const importResultOpen = ref(false)
 const importError = ref('')
 const isCompactLayout = ref(false)
 const selectedAccountIds = ref<number[]>([])
+const importFileInput = useTemplateRef<HTMLInputElement>('importFileInput')
 
 let compactLayoutQuery: MediaQueryList | null = null
 
@@ -184,7 +185,7 @@ function isAccountSelected(accountId: number) {
   return selectedAccountIdSet.value.has(accountId)
 }
 
-async function submitImport() {
+async function submitImport(text = importText.value) {
   importLoading.value = true
   importError.value = ''
   importResultOpen.value = false
@@ -193,7 +194,7 @@ async function submitImport() {
   const response = await useApiRequest<ImportAccountsResult>('/api/accounts/import', {
     method: 'POST',
     body: {
-      text: importText.value,
+      text,
     },
   })
 
@@ -210,6 +211,41 @@ async function submitImport() {
   await refresh()
   message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
   importLoading.value = false
+}
+
+function openImportFileSelector() {
+  if (importLoading.value) {
+    return
+  }
+
+  importFileInput.value?.click()
+}
+
+async function handleImportFileChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const file = target?.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  target.value = ''
+
+  if (!file.name.toLowerCase().endsWith('.txt')) {
+    message.error('仅支持导入 txt 格式文件')
+    return
+  }
+
+  const fileText = await file.text()
+  const normalizedText = fileText.trim()
+
+  if (!normalizedText) {
+    message.warning('所选文件内容为空')
+    return
+  }
+
+  importText.value = normalizedText
+  await submitImport(normalizedText)
 }
 
 function closeImportResult() {
@@ -373,6 +409,7 @@ function formatFileTimestamp(value: Date) {
                 每行 1 条，格式固定：
                 <code>email----password----client_id----refresh_token</code>
               </p>
+              <p>支持直接粘贴文本，或选择本地 TXT 文件后自动导入。</p>
             </div>
           </template>
         </AAlert>
@@ -388,17 +425,45 @@ function formatFileTimestamp(value: Date) {
           </AFormItem>
         </AForm>
 
-        <ASpace class="import-actions" wrap>
-          <AButton type="primary" :loading="importLoading" :disabled="!canSubmitImport" @click="submitImport">
+        <input
+          ref="importFileInput"
+          class="import-file-input"
+          type="file"
+          accept=".txt,text/plain"
+          @change="handleImportFileChange"
+        >
+
+        <div class="import-actions">
+          <AButton
+            class="import-action-button"
+            type="primary"
+            :loading="importLoading"
+            :disabled="!canSubmitImport"
+            @click="submitImport"
+          >
             <template #icon>
               <UploadOutlined />
             </template>
             开始导入
           </AButton>
-          <AButton :disabled="importLoading || !importText" @click="importText = ''">
+          <AButton
+            class="import-action-button"
+            :disabled="importLoading"
+            @click="openImportFileSelector"
+          >
+            <template #icon>
+              <UploadOutlined />
+            </template>
+            本地导入
+          </AButton>
+          <AButton
+            class="import-action-button"
+            :disabled="importLoading || !importText"
+            @click="importText = ''"
+          >
             清空内容
           </AButton>
-        </ASpace>
+        </div>
 
         <AAlert
           v-if="importError"
