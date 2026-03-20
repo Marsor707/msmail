@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "latest",
+    "playwright": "^1.58.2",
     "prisma": "6",
     "typescript": "latest",
     "vue-tsc": "latest"

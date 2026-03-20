@@ -30,6 +30,7 @@ const {
 } = await useAsyncData('accounts', () => useApiRequest<AccountListItem[]>('/api/accounts'))
 
 const accounts = computed(() => accountsData.value?.data ?? [])
+const accountTableLoading = computed(() => pending.value && accounts.value.length === 0)
 const canSubmitImport = computed(() => importText.value.trim().length > 0 && !importLoading.value)
 const selectedAccountIdSet = computed(() => new Set(selectedAccountIds.value))
 const selectedAccounts = computed(() =>
@@ -71,6 +72,8 @@ const summaryCards = computed(() => {
   ]
 })
 
+const ACCOUNT_SELECTION_COLUMN_WIDTH = 56
+
 const accountColumns = [
   {
     title: '邮箱账号',
@@ -79,35 +82,36 @@ const accountColumns = [
     width: 260,
   },
   {
+    title: 'Access 状态',
+    key: 'tokenState',
+    width: 280,
+  },
+  {
     title: 'Client ID',
     dataIndex: 'clientId',
     key: 'clientId',
-    width: 220,
-  },
-  {
-    title: 'Refresh Token',
-    key: 'refreshToken',
-    width: 140,
-  },
-  {
-    title: 'Access 状态',
-    key: 'tokenState',
-    width: 210,
+    width: 260,
   },
   {
     title: '最近更新时间',
     key: 'updatedAt',
-    width: 220,
+    width: 260,
   },
   {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 128,
     fixed: 'right',
   },
 ]
 
+const accountTableScrollX = accountColumns.reduce(
+  (sum, column) => sum + (typeof column.width === 'number' ? column.width : 0),
+  ACCOUNT_SELECTION_COLUMN_WIDTH,
+)
+
 const accountRowSelection = computed(() => ({
+  columnWidth: ACCOUNT_SELECTION_COLUMN_WIDTH,
   selectedRowKeys: selectedAccountIds.value,
   onChange: (keys: Array<string | number>) => {
     setSelectedAccountIds(keys)
@@ -372,8 +376,8 @@ function getTokenState(account: AccountListItem) {
   if (account.hasRefreshToken) {
     return {
       label: '待刷新',
-      color: 'processing',
-      detail: account.tokenExpires ? 'Access Token 已过期，可重新换取。' : '尚未生成 Access Token。',
+      color: 'warning',
+      detail: account.tokenExpires ? 'Access Token 已过期' : '尚未生成 Access Token。',
     }
   }
 
@@ -526,142 +530,66 @@ function formatFileTimestamp(value: Date) {
             </ASpace>
           </div>
 
-          <AEmpty
-            v-if="accounts.length === 0 && !pending"
-            description="当前还没有导入任何邮箱账号"
-          />
+          <ClientOnly>
+            <AEmpty
+              v-if="accounts.length === 0 && !pending"
+              description="当前还没有导入任何邮箱账号"
+            />
 
-          <div v-else-if="isCompactLayout" class="account-mobile-list">
-            <ACard
-              v-for="account in accounts"
-              :key="account.id"
-              size="small"
-              class="account-mobile-card"
-              :bordered="false"
-            >
-              <div class="account-mobile-card__header">
-                <div class="account-mobile-card__title">
-                  <ACheckbox
-                    class="account-mobile-card__selector"
-                    :checked="isAccountSelected(account.id)"
-                    @change="handleMobileSelectionChange(account.id, $event)"
-                  >
-                    <ATypographyText strong>{{ account.email }}</ATypographyText>
-                  </ACheckbox>
-                  <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
-                </div>
-
-                <ATag :color="getTokenState(account).color">
-                  {{ getTokenState(account).label }}
-                </ATag>
-              </div>
-
-              <ADescriptions :column="1" size="small">
-                <ADescriptionsItem label="Client ID">
-                  <ATypographyText
-                    class="client-id-text"
-                    :content="account.clientId"
-                    :ellipsis="{ tooltip: account.clientId }"
-                  />
-                </ADescriptionsItem>
-                <ADescriptionsItem label="Refresh Token">
-                  <ATag :color="account.hasRefreshToken ? 'success' : 'error'">
-                    {{ account.hasRefreshToken ? '已导入' : '缺失' }}
-                  </ATag>
-                </ADescriptionsItem>
-                <ADescriptionsItem label="Access 状态">
-                  <div class="table-cell__stack">
-                    <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
-                    <span class="table-cell__subtext">
-                      {{ account.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
-                    </span>
+            <div v-else-if="isCompactLayout" class="account-mobile-list">
+              <ACard
+                v-for="account in accounts"
+                :key="account.id"
+                size="small"
+                class="account-mobile-card"
+                :bordered="false"
+              >
+                <div class="account-mobile-card__header">
+                  <div class="account-mobile-card__title">
+                    <ACheckbox
+                      class="account-mobile-card__selector"
+                      :checked="isAccountSelected(account.id)"
+                      @change="handleMobileSelectionChange(account.id, $event)"
+                    >
+                      <ATypographyText strong>{{ account.email }}</ATypographyText>
+                    </ACheckbox>
+                    <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
                   </div>
-                </ADescriptionsItem>
-                <ADescriptionsItem label="最近更新时间">
-                  {{ formatDate(account.updatedAt) }}
-                </ADescriptionsItem>
-              </ADescriptions>
 
-              <ASpace class="account-mobile-card__actions" wrap>
-                <NuxtLink :to="`/account/${encodeURIComponent(account.email)}`">
-                  <AButton type="primary">查看邮件</AButton>
-                </NuxtLink>
-                <AButton
-                  danger
-                  :loading="deletingId === account.id"
-                  @click="removeAccount(account)"
-                >
-                  <template #icon>
-                    <DeleteOutlined />
-                  </template>
-                  删除
-                </AButton>
-              </ASpace>
-            </ACard>
-          </div>
-
-          <ATable
-            v-else
-            :columns="accountColumns"
-            :data-source="accounts"
-            :loading="pending"
-            :pagination="{ pageSize: 8, showSizeChanger: false }"
-            :row-selection="accountRowSelection"
-            :scroll="{ x: 1100 }"
-            row-key="id"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'email'">
-                <div class="table-cell__stack">
-                  <ATypographyText strong>{{ record.email }}</ATypographyText>
-                  <ATypographyText type="secondary" class="table-cell__subtext">
-                    创建于 {{ formatDate(record.createdAt) }}
-                  </ATypographyText>
-                </div>
-              </template>
-
-              <template v-else-if="column.key === 'clientId'">
-                <ATypographyText
-                  class="client-id-text"
-                  :content="record.clientId"
-                  :ellipsis="{ tooltip: record.clientId }"
-                />
-              </template>
-
-              <template v-else-if="column.key === 'refreshToken'">
-                <ATag :color="record.hasRefreshToken ? 'success' : 'error'">
-                  {{ record.hasRefreshToken ? '已导入' : '缺失' }}
-                </ATag>
-              </template>
-
-              <template v-else-if="column.key === 'tokenState'">
-                <div class="table-cell__stack">
-                  <ATag :color="getTokenState(record).color">
-                    {{ getTokenState(record).label }}
+                  <ATag :color="getTokenState(account).color">
+                    {{ getTokenState(account).label }}
                   </ATag>
-                  <span class="table-cell__subtext">{{ getTokenState(record).detail }}</span>
                 </div>
-              </template>
 
-              <template v-else-if="column.key === 'updatedAt'">
-                <div class="table-cell__stack">
-                  <ATypographyText>{{ formatDate(record.updatedAt) }}</ATypographyText>
-                  <span class="table-cell__subtext">
-                    {{ record.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
-                  </span>
-                </div>
-              </template>
+                <ADescriptions :column="1" size="small">
+                  <ADescriptionsItem label="Access 状态">
+                    <div class="table-cell__stack">
+                      <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
+                      <span class="table-cell__subtext">
+                        {{ account.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
+                      </span>
+                    </div>
+                  </ADescriptionsItem>
+                  <ADescriptionsItem label="Client ID">
+                    <ATypographyText
+                      class="client-id-text"
+                      :content="account.clientId"
+                      :ellipsis="{ tooltip: account.clientId }"
+                    />
+                  </ADescriptionsItem>
+                  <ADescriptionsItem label="最近更新时间">
+                    {{ formatDate(account.updatedAt) }}
+                  </ADescriptionsItem>
+                </ADescriptions>
 
-              <template v-else-if="column.key === 'actions'">
-                <ASpace>
-                  <NuxtLink :to="`/account/${encodeURIComponent(record.email)}`">
-                    <AButton type="link">查看邮件</AButton>
+                <ASpace class="account-mobile-card__actions" wrap>
+                  <NuxtLink :to="`/account/${encodeURIComponent(account.email)}`">
+                    <AButton type="primary">查看邮件</AButton>
                   </NuxtLink>
                   <AButton
                     danger
-                    type="text"
-                    :loading="deletingId === record.id"
-                    @click="removeAccount(record)"
+                    :loading="deletingId === account.id"
+                    @click="removeAccount(account)"
                   >
                     <template #icon>
                       <DeleteOutlined />
@@ -669,9 +597,86 @@ function formatFileTimestamp(value: Date) {
                     删除
                   </AButton>
                 </ASpace>
+              </ACard>
+            </div>
+
+            <ATable
+              v-else
+              class="account-table"
+              :columns="accountColumns"
+              :data-source="accounts"
+              :loading="accountTableLoading"
+              :pagination="{ pageSize: 8, showSizeChanger: false }"
+              :row-selection="accountRowSelection"
+              :scroll="{ x: accountTableScrollX }"
+              table-layout="fixed"
+              row-key="id"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'email'">
+                  <div class="table-cell__stack">
+                    <ATypographyText strong>{{ record.email }}</ATypographyText>
+                    <ATypographyText type="secondary" class="table-cell__subtext">
+                      创建于 {{ formatDate(record.createdAt) }}
+                    </ATypographyText>
+                  </div>
+                </template>
+
+                <template v-else-if="column.key === 'clientId'">
+                  <ATypographyText
+                    class="client-id-text"
+                    :content="record.clientId"
+                    :ellipsis="{ tooltip: record.clientId }"
+                  />
+                </template>
+
+                <template v-else-if="column.key === 'tokenState'">
+                  <div class="table-cell__stack">
+                    <ATag :color="getTokenState(record).color">
+                      {{ getTokenState(record).label }}
+                    </ATag>
+                    <span class="table-cell__subtext">{{ getTokenState(record).detail }}</span>
+                  </div>
+                </template>
+
+                <template v-else-if="column.key === 'updatedAt'">
+                  <div class="table-cell__stack">
+                    <ATypographyText>{{ formatDate(record.updatedAt) }}</ATypographyText>
+                    <span class="table-cell__subtext">
+                      {{ record.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
+                    </span>
+                  </div>
+                </template>
+
+                <template v-else-if="column.key === 'actions'">
+                  <ASpace class="account-table__actions" :size="4">
+                    <NuxtLink :to="`/account/${encodeURIComponent(record.email)}`">
+                      <AButton type="link" size="small">查看</AButton>
+                    </NuxtLink>
+                    <AButton
+                      aria-label="删除账号"
+                      danger
+                      type="text"
+                      size="small"
+                      title="删除账号"
+                      :loading="deletingId === record.id"
+                      @click="removeAccount(record)"
+                    >
+                      <template #icon>
+                        <DeleteOutlined />
+                      </template>
+                    </AButton>
+                  </ASpace>
+                </template>
               </template>
+            </ATable>
+
+            <template #fallback>
+              <div class="account-panel-skeleton">
+                <ASkeleton active :paragraph="{ rows: 6 }" />
+              </div>
             </template>
-          </ATable>
+          </ClientOnly>
         </ACard>
       </div>
     </div>

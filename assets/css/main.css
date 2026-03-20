@@ -346,6 +346,20 @@ code {
   min-width: 0;
 }
 
+.account-panel-skeleton {
+  padding-block: 8px;
+}
+
+.account-table__actions {
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.account-table__actions .ant-btn {
+  padding-inline: 4px;
+}
+
 .stat-card {
   height: 100%;
   border-color: var(--panel-border);
@@ -459,10 +473,20 @@ code {
   font-weight: 600;
 }
 
-.ant-descriptions-view,
-.ant-table-container {
+.ant-descriptions-view {
   border-radius: 12px;
   overflow: hidden;
+}
+
+.ant-table-container {
+  border-radius: 12px;
+}
+
+.account-table .ant-table-cell-fix-left,
+.account-table .ant-table-cell-fix-left-last,
+.account-table .ant-table-cell-fix-right,
+.account-table .ant-table-cell-fix-right-first {
+  background: var(--panel-bg);
 }
 
 .page-card__subtitle,
