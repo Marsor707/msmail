@@ -38,37 +38,35 @@ const themeConfig = {
 
 <template>
   <AConfigProvider :theme="themeConfig">
-    <AApp>
-      <ALayout :class="['app-layout', { 'app-layout--mailbox': isMailboxPage }]">
-        <ALayoutHeader v-if="showHeader" class="app-header">
-          <div class="app-header__inner">
-            <NuxtLink to="/" class="app-brand">
-              <span class="app-brand__mark">MS</span>
-              <span class="app-brand__text">
-                <strong>微软邮箱管理系统</strong>
-                <small>前端工作台</small>
-              </span>
-            </NuxtLink>
+    <ALayout :class="['app-layout', { 'app-layout--mailbox': isMailboxPage }]">
+      <ALayoutHeader v-if="showHeader" class="app-header">
+        <div class="app-header__inner">
+          <NuxtLink to="/" class="app-brand">
+            <span class="app-brand__mark">MS</span>
+            <span class="app-brand__text">
+              <strong>微软邮箱管理系统</strong>
+              <small>前端工作台</small>
+            </span>
+          </NuxtLink>
 
-            <ATag color="blue" class="app-header__tag">
-              {{ pageLabel }}
-            </ATag>
-          </div>
-        </ALayoutHeader>
+          <ATag color="blue" class="app-header__tag">
+            {{ pageLabel }}
+          </ATag>
+        </div>
+      </ALayoutHeader>
 
-        <ALayoutContent
-          :class="[
-            'app-content',
-            {
-              'app-content--no-header': !showHeader,
-            },
-          ]"
-        >
-          <div class="app-content__inner">
-            <NuxtPage />
-          </div>
-        </ALayoutContent>
-      </ALayout>
-    </AApp>
+      <ALayoutContent
+        :class="[
+          'app-content',
+          {
+            'app-content--no-header': !showHeader,
+          },
+        ]"
+      >
+        <div class="app-content__inner">
+          <NuxtPage />
+        </div>
+      </ALayoutContent>
+    </ALayout>
   </AConfigProvider>
 </template>

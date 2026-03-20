@@ -38,24 +38,28 @@ const mailboxStats = computed(() => [
     label: '当前展示',
     value: mails.value.length,
     suffix: '封',
+    variant: 'count',
   },
   {
     key: 'unread',
     label: '未读邮件',
     value: mails.value.filter((mail) => !mail.isRead).length,
     suffix: '封',
+    variant: 'count',
   },
   {
     key: 'attachment',
     label: '包含附件',
     value: mails.value.filter((mail) => mail.hasAttachments).length,
     suffix: '封',
+    variant: 'count',
   },
   {
     key: 'latest',
     label: '最新邮件时间',
     value: mails.value[0]?.receivedAt ? formatCompactDate(mails.value[0].receivedAt) : '暂无',
     suffix: '',
+    variant: 'timestamp',
   },
 ])
 
@@ -110,11 +114,18 @@ function formatCompactDate(value: string) {
 
         <div class="page-toolbar">
           <div class="page-toolbar__field">
-            <ASelect
-              v-model:value="limit"
+            <select
+              v-model.number="limit"
               class="page-toolbar__select"
-              :options="limitOptions"
-            />
+            >
+              <option
+                v-for="option in limitOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </div>
 
           <NuxtLink to="/" class="page-toolbar__link">
@@ -139,20 +150,28 @@ function formatCompactDate(value: string) {
         </div>
       </div>
 
-      <ARow :gutter="[16, 16]" class="summary-grid">
-        <ACol
+      <div class="mail-summary-grid">
+        <div
           v-for="item in mailboxStats"
           :key="item.key"
-          :xs="24"
-          :sm="12"
-          :md="6"
+          class="mail-summary-grid__item"
         >
           <ACard class="stat-card" :bordered="false">
-            <ATypographyText type="secondary">{{ item.label }}</ATypographyText>
-            <AStatistic :value="item.value" :suffix="item.suffix" />
+            <div class="stat-card__label">{{ item.label }}</div>
+            <div
+              :class="[
+                'stat-card__value',
+                {
+                  'stat-card__value--timestamp': item.variant === 'timestamp',
+                },
+              ]"
+            >
+              <span>{{ item.value }}</span>
+              <span v-if="item.suffix" class="stat-card__suffix">{{ item.suffix }}</span>
+            </div>
           </ACard>
-        </ACol>
-      </ARow>
+        </div>
+      </div>
     </ACard>
 
     <AAlert
