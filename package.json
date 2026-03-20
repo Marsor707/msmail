@@ -13,7 +13,9 @@
     "check": "nuxt typecheck"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
     "@prisma/client": "6",
+    "ant-design-vue": "^4.2.6",
     "dotenv": "latest",
     "isomorphic-dompurify": "latest",
     "nuxt": "latest",

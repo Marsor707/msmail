@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  DeleteOutlined,
+  MailOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+} from '@ant-design/icons-vue'
+import message from 'ant-design-vue/es/message'
+import Modal from 'ant-design-vue/es/modal'
 import type { AccountListItem, ImportAccountsResult } from '~/shared/types'
 
 const importText = ref('')
@@ -6,6 +14,9 @@ const importLoading = ref(false)
 const deletingId = ref<number | null>(null)
 const importResult = ref<ImportAccountsResult | null>(null)
 const importError = ref('')
+const isCompactLayout = ref(false)
+
+let compactLayoutQuery: MediaQueryList | null = null
 
 const {
   data: accountsData,
@@ -16,60 +27,107 @@ const {
 const accounts = computed(() => accountsData.value?.data ?? [])
 const canSubmitImport = computed(() => importText.value.trim().length > 0 && !importLoading.value)
 
-const workflowSteps = [
+const summaryCards = computed(() => {
+  const accessibleCount = accounts.value.filter(
+    (item) => item.hasAccessToken && isFutureDate(item.tokenExpires),
+  ).length
+  const refreshableCount = accounts.value.filter(
+    (item) => item.hasRefreshToken && !isFutureDate(item.tokenExpires),
+  ).length
+
+  return [
+    {
+      key: 'total',
+      title: '已接入账号',
+      value: accounts.value.length,
+      suffix: '个',
+      desc: '当前系统内已保存的邮箱账号数量。',
+    },
+    {
+      key: 'accessible',
+      title: '可直接读取',
+      value: accessibleCount,
+      suffix: '个',
+      desc: 'Access Token 仍在有效期内，可直接查看邮件。',
+    },
+    {
+      key: 'refreshable',
+      title: '待刷新',
+      value: refreshableCount,
+      suffix: '个',
+      desc: '已有 Refresh Token，但需要重新换取 Access Token。',
+    },
+  ]
+})
+
+const accountColumns = [
   {
-    title: '批量导入账号',
-    description: '按固定格式一次性导入多个微软邮箱账号，重复邮箱会自动覆盖旧配置。',
+    title: '邮箱账号',
+    dataIndex: 'email',
+    key: 'email',
+    width: 260,
   },
   {
-    title: '统一检查 Token',
-    description: '工作台集中展示 refresh token 与 access token 状态，便于快速发现异常账号。',
+    title: 'Client ID',
+    dataIndex: 'clientId',
+    key: 'clientId',
+    width: 220,
   },
   {
-    title: '进入邮件阅读',
-    description: '按账号进入最近邮件列表，再下钻到正文详情页完成排查、验收或接口联调。',
+    title: 'Refresh Token',
+    key: 'refreshToken',
+    width: 140,
+  },
+  {
+    title: 'Access 状态',
+    key: 'tokenState',
+    width: 210,
+  },
+  {
+    title: '最近更新时间',
+    key: 'updatedAt',
+    width: 220,
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 150,
+    fixed: 'right',
   },
 ]
 
-const latestUpdatedAt = computed(() => {
-  if (accounts.value.length === 0) {
-    return null
+function syncCompactLayout(target?: MediaQueryList | MediaQueryListEvent) {
+  isCompactLayout.value = target?.matches ?? compactLayoutQuery?.matches ?? false
+}
+
+function handleCompactLayoutChange(event: MediaQueryListEvent) {
+  syncCompactLayout(event)
+}
+
+onMounted(() => {
+  compactLayoutQuery = window.matchMedia('(max-width: 1100px)')
+  syncCompactLayout(compactLayoutQuery)
+
+  if (typeof compactLayoutQuery.addEventListener === 'function') {
+    compactLayoutQuery.addEventListener('change', handleCompactLayoutChange)
+    return
   }
 
-  return [...accounts.value]
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0]
-    ?.updatedAt ?? null
+  compactLayoutQuery.addListener(handleCompactLayoutChange)
 })
 
-const workspaceStats = computed(() => [
-  {
-    label: '已接入账号',
-    value: String(accounts.value.length),
-    desc: '当前工作台收录的邮箱数量',
-  },
-  {
-    label: '可直接读取',
-    value: String(accounts.value.filter((item) => item.hasAccessToken && isFutureDate(item.tokenExpires)).length),
-    desc: '存在未过期 Access Token 的账号数',
-  },
-  {
-    label: '可刷新恢复',
-    value: String(accounts.value.filter((item) => item.hasRefreshToken).length),
-    desc: '具备 refresh_token 的账号数',
-  },
-  {
-    label: '最近变更',
-    value: latestUpdatedAt.value ? formatCompactDate(latestUpdatedAt.value) : '暂无',
-    desc: '按账号更新时间统计',
-  },
-])
+onBeforeUnmount(() => {
+  if (!compactLayoutQuery) {
+    return
+  }
 
-const accountCards = computed(() =>
-  accounts.value.map((account) => ({
-    account,
-    tokenState: getTokenState(account),
-  })),
-)
+  if (typeof compactLayoutQuery.removeEventListener === 'function') {
+    compactLayoutQuery.removeEventListener('change', handleCompactLayoutChange)
+    return
+  }
+
+  compactLayoutQuery.removeListener(handleCompactLayoutChange)
+})
 
 async function reloadAccounts() {
   await refresh()
@@ -87,8 +145,9 @@ async function submitImport() {
     },
   })
 
-  if (!response.success) {
+  if (!response.success || !response.data) {
     importError.value = response.message
+    message.error(response.message || '导入失败')
     importLoading.value = false
     return
   }
@@ -96,27 +155,37 @@ async function submitImport() {
   importResult.value = response.data
   importText.value = ''
   await refresh()
+  message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
   importLoading.value = false
 }
 
-async function removeAccount(id: number) {
-  if (!window.confirm('确认删除这个邮箱账号吗？')) {
-    return
-  }
+function removeAccount(account: AccountListItem) {
+  Modal.confirm({
+    title: '确认删除账号',
+    content: `删除后将移除邮箱 ${account.email} 的本地配置记录。`,
+    okText: '确认删除',
+    cancelText: '取消',
+    okButtonProps: {
+      danger: true,
+    },
+    async onOk() {
+      deletingId.value = account.id
 
-  deletingId.value = id
-  const response = await useApiRequest<{ id: number }>(`/api/accounts/${id}`, {
-    method: 'DELETE',
+      const response = await useApiRequest<{ id: number }>(`/api/accounts/${account.id}`, {
+        method: 'DELETE',
+      })
+
+      deletingId.value = null
+
+      if (!response.success) {
+        message.error(response.message || '删除失败')
+        return Promise.reject(new Error(response.message))
+      }
+
+      await refresh()
+      message.success('账号已删除')
+    },
   })
-
-  deletingId.value = null
-
-  if (!response.success) {
-    window.alert(response.message)
-    return
-  }
-
-  await refresh()
 }
 
 function formatDate(value: string | null) {
@@ -127,19 +196,6 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('zh-CN', {
     dateStyle: 'medium',
     timeStyle: 'short',
-  }).format(new Date(value))
-}
-
-function formatCompactDate(value: string | null) {
-  if (!value) {
-    return '暂无'
-  }
-
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   }).format(new Date(value))
 }
 
@@ -155,7 +211,7 @@ function getTokenState(account: AccountListItem) {
   if (account.hasAccessToken && isFutureDate(account.tokenExpires)) {
     return {
       label: '可直接读取',
-      tone: 'success',
+      color: 'success',
       detail: `有效期至 ${formatDate(account.tokenExpires)}`,
     }
   }
@@ -163,253 +219,301 @@ function getTokenState(account: AccountListItem) {
   if (account.hasRefreshToken) {
     return {
       label: '待刷新',
-      tone: 'info',
-      detail: account.tokenExpires
-        ? `Access Token 已失效，可通过 refresh_token 重新拉取`
-        : '尚未生成 Access Token，可按需刷新',
+      color: 'processing',
+      detail: account.tokenExpires ? 'Access Token 已过期，可重新换取。' : '尚未生成 Access Token。',
     }
   }
 
   return {
     label: '配置缺失',
-    tone: 'danger',
-    detail: '缺少 refresh_token，请重新导入该账号',
+    color: 'error',
+    detail: '缺少 Refresh Token，请重新导入。',
   }
 }
 </script>
 
 <template>
-  <section class="dashboard-stack">
-    <div class="surface-card hero-panel">
-      <div class="hero-main">
-        <span class="eyebrow-chip">Mail Operations Console</span>
-        <h1 class="hero-title">把微软邮箱账号、Token 与邮件读取统一放进一个工作台。</h1>
-        <p class="hero-text">
-          这套控制台聚焦三个动作：批量导入账号、集中查看 token 状态、快速进入邮件详情页。
-          适合排障、验收和接口联调，不需要再在脚本、数据库和接口文档之间来回切换。
-        </p>
-
-        <div class="hero-actions">
-          <a class="btn primary" href="#import-panel">开始导入账号</a>
-          <button
-            class="btn secondary"
-            :disabled="pending"
-            @click="reloadAccounts"
-          >
-            {{ pending ? '同步中...' : '刷新工作台' }}
-          </button>
-        </div>
-
-        <div class="workflow-grid">
-          <article
-            v-for="(step, index) in workflowSteps"
-            :key="step.title"
-            class="workflow-card"
-          >
-            <span class="workflow-index">0{{ index + 1 }}</span>
-            <h2>{{ step.title }}</h2>
-            <p>{{ step.description }}</p>
-          </article>
-        </div>
-      </div>
-
-      <div class="stat-stack">
-        <div
-          v-for="card in workspaceStats"
-          :key="card.label"
-          class="metric-card"
-        >
-          <small>{{ card.label }}</small>
-          <strong>{{ card.value }}</strong>
-          <p>{{ card.desc }}</p>
-        </div>
-      </div>
-    </div>
-
+  <section class="dashboard-page">
     <div class="dashboard-grid">
-      <div
-        id="import-panel"
-        class="surface-card"
-      >
-        <div class="panel-header">
-          <div>
-            <h2 class="section-title">批量导入账号</h2>
-            <p class="section-desc">支持一次性覆盖更新多个邮箱配置，适合初始化和批量修复。</p>
-          </div>
-          <span class="status-badge neutral">Ctrl / Cmd + Enter 可快速提交</span>
+      <ACard title="批量导入账号" class="panel-card import-card" :bordered="false">
+        <div class="import-card__meta">
+          <ATypographyText type="secondary">
+            每行 1 条，格式固定：`email----password----client_id----refresh_token`
+          </ATypographyText>
+          <ATag color="blue">Ctrl / Cmd + Enter 提交</ATag>
         </div>
 
-        <div class="callout-box">
-          <span class="overline">导入格式</span>
-          <pre class="snippet-box">email----password----client_id----refresh_token</pre>
-          <p class="callout-text">
-            每行一个账号。重复邮箱会覆盖密码、client_id 与 refresh_token，并清空旧的 Access Token 缓存。
-          </p>
-        </div>
-
-        <label class="form-label" for="import-textarea">导入内容</label>
-        <textarea
-          id="import-textarea"
-          v-model="importText"
-          class="textarea"
-          placeholder="user@example.com----password----client-id----refresh-token"
-          @keydown.ctrl.enter.prevent="submitImport"
-          @keydown.meta.enter.prevent="submitImport"
+        <AAlert
+          type="info"
+          show-icon
+          message="导入说明"
+          description="重复邮箱会覆盖旧配置，并清空旧的 Access Token 缓存。页面仅展示必要状态，不回显密码和 Token 明文。"
         />
 
-        <div class="actions">
-          <button
-            class="btn primary"
-            :disabled="!canSubmitImport"
-            @click="submitImport"
-          >
-            {{ importLoading ? '导入中...' : '开始导入' }}
-          </button>
-          <button
-            class="btn secondary"
-            :disabled="importLoading || !importText"
-            @click="importText = ''"
-          >
-            清空文本
-          </button>
-        </div>
+        <AForm layout="vertical" style="margin-top: 20px">
+          <AFormItem label="导入内容">
+            <ATextarea
+              v-model:value="importText"
+              :rows="14"
+              placeholder="user@example.com----password----client-id----refresh-token"
+              @keydown.ctrl.enter.prevent="submitImport"
+              @keydown.meta.enter.prevent="submitImport"
+            />
+          </AFormItem>
+        </AForm>
 
-        <ul class="bullet-list hint-list">
-          <li>推荐先导入，再刷新工作台查看 token 状态是否正常。</li>
-          <li>若同一个邮箱重新导入，系统会按最新一行配置为准。</li>
-          <li>仅页面展示必要元信息，不返回密码与 token 明文。</li>
-        </ul>
+        <ASpace class="import-actions" wrap>
+          <AButton type="primary" :loading="importLoading" :disabled="!canSubmitImport" @click="submitImport">
+            <template #icon>
+              <UploadOutlined />
+            </template>
+            开始导入
+          </AButton>
+          <AButton :disabled="importLoading || !importText" @click="importText = ''">
+            清空内容
+          </AButton>
+        </ASpace>
 
-        <div
-          v-if="importResult"
-          class="result-box"
-        >
-          <div class="result-grid">
-            <div class="result-item">
-              <span>解析行数</span>
-              <strong>{{ importResult.totalLines }}</strong>
-            </div>
-            <div class="result-item">
-              <span>成功写入</span>
-              <strong>{{ importResult.successCount }}</strong>
-            </div>
-            <div class="result-item">
-              <span>新增账号</span>
-              <strong>{{ importResult.createdCount }}</strong>
-            </div>
-            <div class="result-item">
-              <span>覆盖更新</span>
-              <strong>{{ importResult.updatedCount }}</strong>
-            </div>
-          </div>
-
-          <template v-if="importResult.errorCount > 0">
-            <div class="result-errors">
-              失败 {{ importResult.errorCount }} 行：
-            </div>
-            <span
-              v-for="item in importResult.errors"
-              :key="`${item.line}-${item.reason}`"
-              class="result-error-line"
-            >
-              第 {{ item.line }} 行：{{ item.reason }}
-            </span>
-          </template>
-        </div>
-
-        <div
+        <AAlert
           v-if="importError"
-          class="error-box"
-        >
-          {{ importError }}
-        </div>
-      </div>
+          style="margin-top: 20px"
+          type="error"
+          show-icon
+          :message="importError"
+        />
 
-      <div class="surface-card">
-        <div class="panel-header">
-          <div>
-            <h2 class="section-title">账号工作台</h2>
-            <p class="section-desc">
-              以账号卡片展示 token 可用性、更新时间与快捷入口，移动端也更容易浏览。
-            </p>
+        <ACard
+          v-if="importResult"
+          size="small"
+          class="import-result"
+          :bordered="false"
+        >
+          <AResult
+            status="success"
+            :title="`成功写入 ${importResult.successCount} 条账号`"
+            :sub-title="`共解析 ${importResult.totalLines} 行，其中新增 ${importResult.createdCount} 条、更新 ${importResult.updatedCount} 条。`"
+            class="import-result__desc"
+          />
+
+          <ADescriptions size="small" :column="isCompactLayout ? 1 : 2" bordered>
+            <ADescriptionsItem label="解析行数">
+              {{ importResult.totalLines }}
+            </ADescriptionsItem>
+            <ADescriptionsItem label="成功写入">
+              {{ importResult.successCount }}
+            </ADescriptionsItem>
+            <ADescriptionsItem label="新增账号">
+              {{ importResult.createdCount }}
+            </ADescriptionsItem>
+            <ADescriptionsItem label="覆盖更新">
+              {{ importResult.updatedCount }}
+            </ADescriptionsItem>
+          </ADescriptions>
+
+          <AAlert
+            v-if="importResult.errorCount > 0"
+            style="margin-top: 16px"
+            type="warning"
+            show-icon
+            :message="`有 ${importResult.errorCount} 行导入失败`"
+          />
+
+          <AList
+            v-if="importResult.errorCount > 0"
+            style="margin-top: 12px"
+            size="small"
+            bordered
+            :data-source="importResult.errors"
+          >
+            <template #renderItem="{ item }">
+              <AListItem>第 {{ item.line }} 行：{{ item.reason }}</AListItem>
+            </template>
+          </AList>
+        </ACard>
+      </ACard>
+
+      <div class="dashboard-main__stack">
+        <ARow :gutter="[16, 16]" class="summary-grid">
+          <ACol
+            v-for="item in summaryCards"
+            :key="item.key"
+            :xs="24"
+            :sm="24"
+            :md="8"
+          >
+            <ACard class="stat-card" :bordered="false">
+              <div class="summary-card__title">
+                <ATypographyText strong>{{ item.title }}</ATypographyText>
+                <MailOutlined v-if="item.key === 'total'" />
+                <ReloadOutlined v-else-if="item.key === 'refreshable'" />
+                <UploadOutlined v-else />
+              </div>
+
+              <AStatistic :value="item.value" :suffix="item.suffix" />
+              <div class="summary-card__desc">{{ item.desc }}</div>
+            </ACard>
+          </ACol>
+        </ARow>
+
+        <ACard class="panel-card" :bordered="false">
+          <div class="table-toolbar">
+            <div>
+              <ATypographyTitle :level="4" style="margin-bottom: 4px">
+                账号管理
+              </ATypographyTitle>
+              <ATypographyText type="secondary">
+                统一查看账号状态、Token 可用性与邮件入口。
+              </ATypographyText>
+            </div>
+
+            <AButton :loading="pending" @click="reloadAccounts">
+              <template #icon>
+                <ReloadOutlined />
+              </template>
+              刷新列表
+            </AButton>
           </div>
 
-          <button
-            class="btn secondary"
-            :disabled="pending"
-            @click="reloadAccounts"
+          <AEmpty
+            v-if="accounts.length === 0 && !pending"
+            description="当前还没有导入任何邮箱账号"
+          />
+
+          <div v-else-if="isCompactLayout" class="account-mobile-list">
+            <ACard
+              v-for="account in accounts"
+              :key="account.id"
+              size="small"
+              class="account-mobile-card"
+              :bordered="false"
+            >
+              <div class="account-mobile-card__header">
+                <div class="account-mobile-card__title">
+                  <ATypographyText strong>{{ account.email }}</ATypographyText>
+                  <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
+                </div>
+
+                <ATag :color="getTokenState(account).color">
+                  {{ getTokenState(account).label }}
+                </ATag>
+              </div>
+
+              <ADescriptions :column="1" size="small">
+                <ADescriptionsItem label="Client ID">
+                  <ATypographyText
+                    class="client-id-text"
+                    :content="account.clientId"
+                    :ellipsis="{ tooltip: account.clientId }"
+                  />
+                </ADescriptionsItem>
+                <ADescriptionsItem label="Refresh Token">
+                  <ATag :color="account.hasRefreshToken ? 'success' : 'error'">
+                    {{ account.hasRefreshToken ? '已导入' : '缺失' }}
+                  </ATag>
+                </ADescriptionsItem>
+                <ADescriptionsItem label="Access 状态">
+                  <div class="table-cell__stack">
+                    <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
+                    <span class="table-cell__subtext">
+                      {{ account.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
+                    </span>
+                  </div>
+                </ADescriptionsItem>
+                <ADescriptionsItem label="最近更新时间">
+                  {{ formatDate(account.updatedAt) }}
+                </ADescriptionsItem>
+              </ADescriptions>
+
+              <ASpace class="account-mobile-card__actions" wrap>
+                <NuxtLink :to="`/account/${encodeURIComponent(account.email)}`">
+                  <AButton type="primary">查看邮件</AButton>
+                </NuxtLink>
+                <AButton
+                  danger
+                  :loading="deletingId === account.id"
+                  @click="removeAccount(account)"
+                >
+                  <template #icon>
+                    <DeleteOutlined />
+                  </template>
+                  删除
+                </AButton>
+              </ASpace>
+            </ACard>
+          </div>
+
+          <ATable
+            v-else
+            :columns="accountColumns"
+            :data-source="accounts"
+            :loading="pending"
+            :pagination="{ pageSize: 8, showSizeChanger: false }"
+            :scroll="{ x: 1100 }"
+            row-key="id"
           >
-            {{ pending ? '刷新中...' : '刷新列表' }}
-          </button>
-        </div>
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'email'">
+                <div class="table-cell__stack">
+                  <ATypographyText strong>{{ record.email }}</ATypographyText>
+                  <ATypographyText type="secondary" class="table-cell__subtext">
+                    创建于 {{ formatDate(record.createdAt) }}
+                  </ATypographyText>
+                </div>
+              </template>
 
-        <div
-          v-if="accounts.length === 0 && !pending"
-          class="empty-box"
-        >
-          当前还没有导入任何邮箱账号。先在左侧粘贴账号配置，再回来查看状态和邮件入口。
-        </div>
+              <template v-else-if="column.key === 'clientId'">
+                <ATypographyText
+                  class="client-id-text"
+                  :content="record.clientId"
+                  :ellipsis="{ tooltip: record.clientId }"
+                />
+              </template>
 
-        <div
-          v-else
-          class="account-list"
-        >
-          <article
-            v-for="item in accountCards"
-            :key="item.account.id"
-            class="account-card"
-          >
-            <div class="account-card-head">
-              <div>
-                <span class="overline">账号邮箱</span>
-                <h3>{{ item.account.email }}</h3>
-              </div>
-              <span
-                class="status-badge"
-                :class="item.tokenState.tone"
-              >
-                {{ item.tokenState.label }}
-              </span>
-            </div>
+              <template v-else-if="column.key === 'refreshToken'">
+                <ATag :color="record.hasRefreshToken ? 'success' : 'error'">
+                  {{ record.hasRefreshToken ? '已导入' : '缺失' }}
+                </ATag>
+              </template>
 
-            <p class="account-detail">{{ item.tokenState.detail }}</p>
+              <template v-else-if="column.key === 'tokenState'">
+                <div class="table-cell__stack">
+                  <ATag :color="getTokenState(record).color">
+                    {{ getTokenState(record).label }}
+                  </ATag>
+                  <span class="table-cell__subtext">{{ getTokenState(record).detail }}</span>
+                </div>
+              </template>
 
-            <div class="account-card-grid">
-              <div class="info-tile">
-                <span>Client ID</span>
-                <code class="mono-text">{{ item.account.clientId }}</code>
-              </div>
-              <div class="info-tile">
-                <span>刷新凭证</span>
-                <strong>{{ item.account.hasRefreshToken ? '已导入' : '缺失' }}</strong>
-              </div>
-              <div class="info-tile">
-                <span>Access Token</span>
-                <strong>{{ item.account.hasAccessToken ? '已缓存' : '未缓存' }}</strong>
-              </div>
-              <div class="info-tile">
-                <span>最近更新</span>
-                <strong>{{ formatDate(item.account.updatedAt) }}</strong>
-              </div>
-            </div>
+              <template v-else-if="column.key === 'updatedAt'">
+                <div class="table-cell__stack">
+                  <ATypographyText>{{ formatDate(record.updatedAt) }}</ATypographyText>
+                  <span class="table-cell__subtext">
+                    {{ record.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
+                  </span>
+                </div>
+              </template>
 
-            <div class="row-actions">
-              <NuxtLink
-                class="mini-btn"
-                :to="`/account/${encodeURIComponent(item.account.email)}`"
-              >
-                查看邮件
-              </NuxtLink>
-              <button
-                class="mini-btn danger"
-                :disabled="deletingId === item.account.id"
-                @click="removeAccount(item.account.id)"
-              >
-                {{ deletingId === item.account.id ? '删除中...' : '删除账号' }}
-              </button>
-            </div>
-          </article>
-        </div>
+              <template v-else-if="column.key === 'actions'">
+                <ASpace>
+                  <NuxtLink :to="`/account/${encodeURIComponent(record.email)}`">
+                    <AButton type="link">查看邮件</AButton>
+                  </NuxtLink>
+                  <AButton
+                    danger
+                    type="text"
+                    :loading="deletingId === record.id"
+                    @click="removeAccount(record)"
+                  >
+                    <template #icon>
+                      <DeleteOutlined />
+                    </template>
+                    删除
+                  </AButton>
+                </ASpace>
+              </template>
+            </template>
+          </ATable>
+        </ACard>
       </div>
     </div>
   </section>

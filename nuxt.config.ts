@@ -1,9 +1,34 @@
+import { fileURLToPath } from 'node:url'
+
+const dayjsEsmRoot = fileURLToPath(new URL('./node_modules/dayjs/esm/', import.meta.url))
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-03-20',
   devtools: {
     enabled: true,
   },
-  css: ['~/assets/css/main.css'],
+  css: ['ant-design-vue/dist/reset.css', '~/assets/css/main.css'],
+  build: {
+    transpile: ['ant-design-vue'],
+  },
+  vite: {
+    resolve: {
+      alias: [
+        {
+          find: /^dayjs$/,
+          replacement: `${dayjsEsmRoot}index.js`,
+        },
+        {
+          find: /^dayjs\/plugin\/(.*)$/,
+          replacement: `${dayjsEsmRoot}plugin/$1/index.js`,
+        },
+        {
+          find: /^dayjs\/locale\/(.*)$/,
+          replacement: `${dayjsEsmRoot}locale/$1.js`,
+        },
+      ],
+    },
+  },
   runtimeConfig: {
     appApiKey: process.env.APP_API_KEY,
     msTokenEndpoint:

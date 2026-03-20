@@ -1,9 +1,17 @@
 <script setup lang="ts">
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import type { MailSummary } from '~/shared/types'
 
 const route = useRoute()
 const email = computed(() => decodeURIComponent(String(route.params.email || '')))
 const limit = ref(20)
+
+const limitOptions = [
+  { value: 10, label: '最近 10 封' },
+  { value: 20, label: '最近 20 封' },
+  { value: 50, label: '最近 50 封' },
+  { value: 100, label: '最近 100 封' },
+]
 
 const {
   data,
@@ -23,26 +31,31 @@ const {
 const response = computed(() => data.value)
 const mails = computed(() => response.value?.data ?? [])
 const errorMessage = computed(() => (response.value?.success === false ? response.value.message : ''))
+
 const mailboxStats = computed(() => [
   {
+    key: 'total',
     label: '当前展示',
-    value: `${mails.value.length} 封`,
-    desc: '本次列表返回的邮件数量',
+    value: mails.value.length,
+    suffix: '封',
   },
   {
+    key: 'unread',
     label: '未读邮件',
-    value: `${mails.value.filter((mail) => !mail.isRead).length} 封`,
-    desc: '便于优先定位新邮件',
+    value: mails.value.filter((mail) => !mail.isRead).length,
+    suffix: '封',
   },
   {
+    key: 'attachment',
     label: '包含附件',
-    value: `${mails.value.filter((mail) => mail.hasAttachments).length} 封`,
-    desc: '用于排查附件类通知或投递记录',
+    value: mails.value.filter((mail) => mail.hasAttachments).length,
+    suffix: '封',
   },
   {
-    label: '最新时间',
+    key: 'latest',
+    label: '最新邮件时间',
     value: mails.value[0]?.receivedAt ? formatCompactDate(mails.value[0].receivedAt) : '暂无',
-    desc: '按接口返回顺序取第一封邮件时间',
+    suffix: '',
   },
 ])
 
@@ -76,114 +89,121 @@ function formatCompactDate(value: string) {
 </script>
 
 <template>
-  <section class="detail-stack">
-    <div class="surface-card page-hero">
-      <div class="breadcrumb">
-        <NuxtLink to="/">账号管理</NuxtLink>
-        <span>/</span>
-        <span>{{ email }}</span>
-      </div>
+  <section class="mail-page">
+    <ACard class="page-card" :bordered="false">
+      <div class="page-card__header">
+        <div class="page-card__header-main">
+          <ABreadcrumb class="page-breadcrumb">
+            <ABreadcrumbItem>
+              <NuxtLink to="/">账号管理</NuxtLink>
+            </ABreadcrumbItem>
+            <ABreadcrumbItem>{{ email }}</ABreadcrumbItem>
+          </ABreadcrumb>
 
-      <div class="page-hero-head">
-        <div>
-          <span class="eyebrow-chip">Mailbox Explorer</span>
-          <h1 class="page-title">邮件列表</h1>
-          <p class="page-subtitle">
-            当前邮箱：<strong>{{ email }}</strong>
-          </p>
+          <ATypographyTitle :level="3" style="margin: 0">
+            邮件列表
+          </ATypographyTitle>
+          <ATypographyText class="page-card__subtitle">
+            当前邮箱：{{ email }}
+          </ATypographyText>
         </div>
 
-        <div class="toolbar-panel">
-          <label class="toolbar-field">
-            <span>读取范围</span>
-            <select
-              v-model="limit"
-              class="select"
-            >
-              <option :value="10">最近 10 封</option>
-              <option :value="20">最近 20 封</option>
-              <option :value="50">最近 50 封</option>
-              <option :value="100">最近 100 封</option>
-            </select>
-          </label>
+        <div class="page-toolbar">
+          <div class="page-toolbar__field">
+            <ASelect v-model:value="limit" :options="limitOptions" />
+          </div>
 
-          <button
-            class="btn secondary"
-            :disabled="pending"
-            @click="reloadMails"
-          >
-            {{ pending ? '刷新中...' : '刷新邮件' }}
-          </button>
+          <NuxtLink to="/">
+            <AButton>
+              <template #icon>
+                <ArrowLeftOutlined />
+              </template>
+              返回首页
+            </AButton>
+          </NuxtLink>
+
+          <AButton :loading="pending" @click="reloadMails">
+            <template #icon>
+              <ReloadOutlined />
+            </template>
+            刷新邮件
+          </AButton>
         </div>
       </div>
 
-      <div class="inline-metrics">
-        <article
+      <ARow :gutter="[16, 16]" class="summary-grid">
+        <ACol
           v-for="item in mailboxStats"
-          :key="item.label"
-          class="compact-metric"
+          :key="item.key"
+          :xs="24"
+          :sm="12"
+          :md="6"
         >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-          <p>{{ item.desc }}</p>
-        </article>
-      </div>
-    </div>
+          <ACard class="stat-card" :bordered="false">
+            <ATypographyText type="secondary">{{ item.label }}</ATypographyText>
+            <AStatistic :value="item.value" :suffix="item.suffix" />
+          </ACard>
+        </ACol>
+      </ARow>
+    </ACard>
 
-    <div
+    <AAlert
       v-if="errorMessage"
-      class="error-box"
-    >
-      {{ errorMessage }}
-    </div>
+      type="error"
+      show-icon
+      :message="errorMessage"
+    />
 
-    <div
-      v-else-if="mails.length === 0 && !pending"
-      class="empty-box"
-    >
-      当前没有读取到任何邮件。你可以调整读取数量后再次刷新，确认该账号近期是否有邮件到达。
-    </div>
+    <ACard v-else class="list-card" :bordered="false" title="最近邮件">
+      <AEmpty
+        v-if="mails.length === 0 && !pending"
+        description="当前没有读取到邮件"
+      />
 
-    <div
-      v-else
-      class="mail-feed"
-    >
-      <NuxtLink
-        v-for="mail in mails"
-        :key="mail.id"
-        class="mail-card"
-        :to="`/account/${encodeURIComponent(email)}/message/${encodeURIComponent(mail.id)}`"
-      >
-        <span
-          class="mail-card-marker"
-          :class="{ read: mail.isRead }"
-        />
+      <ASkeleton
+        v-else-if="pending && mails.length === 0"
+        active
+        :paragraph="{ rows: 6 }"
+      />
 
-        <div class="mail-card-content">
-          <div class="mail-card-head">
-            <h2>{{ mail.subject || '（无主题）' }}</h2>
-            <span class="mail-time">{{ formatDate(mail.receivedAt) }}</span>
-          </div>
+      <AList v-else :data-source="mails" item-layout="vertical">
+        <template #renderItem="{ item }">
+          <AListItem class="mail-list-item">
+            <template #actions>
+              <ATag :color="item.isRead ? 'default' : 'warning'">
+                {{ item.isRead ? '已读' : '未读' }}
+              </ATag>
+              <ATag :color="item.hasAttachments ? 'processing' : 'default'">
+                {{ item.hasAttachments ? '有附件' : '无附件' }}
+              </ATag>
+            </template>
 
-          <p class="mail-sender">
-            {{ mail.fromName || '未知发件人' }}（{{ mail.fromAddress }}）
-          </p>
+            <template #extra>
+              <NuxtLink :to="`/account/${encodeURIComponent(email)}/message/${encodeURIComponent(item.id)}`">
+                <AButton type="link">查看详情</AButton>
+              </NuxtLink>
+            </template>
 
-          <div class="chip-row">
-            <span
-              class="status-badge"
-              :class="mail.isRead ? 'neutral' : 'warning'"
-            >
-              {{ mail.isRead ? '已读' : '未读' }}
-            </span>
-            <span class="status-badge neutral">
-              {{ mail.hasAttachments ? '包含附件' : '无附件' }}
-            </span>
-          </div>
-        </div>
+            <AListItemMeta>
+              <template #title>
+                <div class="mail-item__title">
+                  <span class="mail-item__subject">{{ item.subject || '（无主题）' }}</span>
+                  <ATypographyText type="secondary">
+                    {{ formatDate(item.receivedAt) }}
+                  </ATypographyText>
+                </div>
+              </template>
 
-        <span class="mail-card-link">查看详情</span>
-      </NuxtLink>
-    </div>
+              <template #description>
+                <div class="mail-item__meta">
+                  <span>{{ item.fromName || '未知发件人' }}</span>
+                  <span>{{ item.fromAddress }}</span>
+                </div>
+              </template>
+            </AListItemMeta>
+          </AListItem>
+        </template>
+      </AList>
+    </ACard>
   </section>
 </template>

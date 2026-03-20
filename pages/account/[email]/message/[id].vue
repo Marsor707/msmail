@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ArrowLeftOutlined } from '@ant-design/icons-vue'
 import DOMPurify from 'isomorphic-dompurify'
 import type { MailDetail } from '~/shared/types'
 
@@ -30,31 +31,8 @@ const mail = computed(() => {
       : [],
   }
 })
-const errorMessage = computed(() => (response.value?.success === false ? response.value.message : ''))
-const messageStats = computed(() => {
-  if (!mail.value) {
-    return []
-  }
 
-  return [
-    {
-      label: '接收时间',
-      value: formatDate(mail.value.receivedAt),
-    },
-    {
-      label: '正文类型',
-      value: mail.value.bodyType === 'html' ? 'HTML' : '纯文本',
-    },
-    {
-      label: '收件人数',
-      value: `${mail.value.toRecipients.length} 人`,
-    },
-    {
-      label: '抄送人数',
-      value: `${mail.value.ccRecipients.length} 人`,
-    },
-  ]
-})
+const errorMessage = computed(() => (response.value?.success === false ? response.value.message : ''))
 
 const sanitizedBody = computed(() => {
   if (!mail.value) {
@@ -90,99 +68,94 @@ function escapeHtml(value: string) {
 </script>
 
 <template>
-  <section class="detail-stack">
-    <div
+  <section class="message-page">
+    <AAlert
       v-if="errorMessage"
-      class="error-box"
-    >
-      {{ errorMessage }}
-    </div>
+      type="error"
+      show-icon
+      :message="errorMessage"
+    />
 
     <template v-else-if="mail">
-      <div class="surface-card page-hero">
-        <div class="breadcrumb">
-          <NuxtLink to="/">账号管理</NuxtLink>
-          <span>/</span>
-          <NuxtLink :to="`/account/${encodeURIComponent(email)}`">{{ email }}</NuxtLink>
-          <span>/</span>
-          <span>邮件详情</span>
-        </div>
+      <ACard class="page-card" :bordered="false">
+        <div class="page-card__header">
+          <div class="page-card__header-main">
+            <ABreadcrumb class="page-breadcrumb">
+              <ABreadcrumbItem>
+                <NuxtLink to="/">账号管理</NuxtLink>
+              </ABreadcrumbItem>
+              <ABreadcrumbItem>
+                <NuxtLink :to="`/account/${encodeURIComponent(email)}`">{{ email }}</NuxtLink>
+              </ABreadcrumbItem>
+              <ABreadcrumbItem>邮件详情</ABreadcrumbItem>
+            </ABreadcrumb>
 
-        <div class="page-hero-head">
-          <div>
-            <span class="eyebrow-chip">Message Detail</span>
-            <h1 class="page-title">{{ mail.subject || '（无主题）' }}</h1>
-            <p class="page-subtitle">
+            <ATypographyTitle :level="3" style="margin: 0">
+              {{ mail.subject || '（无主题）' }}
+            </ATypographyTitle>
+            <ATypographyParagraph type="secondary" style="margin-bottom: 0">
               {{ mail.preview || '这封邮件没有提供预览摘要。' }}
-            </p>
+            </ATypographyParagraph>
           </div>
 
-          <div class="chip-row">
-            <span
-              class="status-badge"
-              :class="mail.isRead ? 'neutral' : 'warning'"
-            >
+          <div class="message-header__actions">
+            <ATag :color="mail.isRead ? 'default' : 'warning'">
               {{ mail.isRead ? '已读' : '未读' }}
-            </span>
-            <span class="status-badge neutral">
+            </ATag>
+            <ATag :color="mail.hasAttachments ? 'processing' : 'default'">
               {{ mail.hasAttachments ? '有附件' : '无附件' }}
-            </span>
+            </ATag>
+            <NuxtLink :to="`/account/${encodeURIComponent(email)}`">
+              <AButton>
+                <template #icon>
+                  <ArrowLeftOutlined />
+                </template>
+                返回邮件列表
+              </AButton>
+            </NuxtLink>
           </div>
         </div>
 
-        <div class="sender-strip">
-          <span class="overline">发件人</span>
-          <strong>{{ mail.fromName || '未知发件人' }}</strong>
-          <span>{{ mail.fromAddress }}</span>
-        </div>
+        <ADescriptions bordered :column="1" style="margin-top: 24px">
+          <ADescriptionsItem label="发件人">
+            {{ mail.fromName || '未知发件人' }}（{{ mail.fromAddress }}）
+          </ADescriptionsItem>
+          <ADescriptionsItem label="接收时间">
+            {{ formatDate(mail.receivedAt) }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="正文类型">
+            {{ mail.bodyType === 'html' ? 'HTML' : '纯文本' }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="收件人">
+            {{ mail.toRecipients.length ? mail.toRecipients.join('，') : '-' }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="抄送">
+            {{ mail.ccRecipients.length ? mail.ccRecipients.join('，') : '-' }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="Internet Message ID">
+            <ATypographyText copyable>
+              {{ mail.internetMessageId || '-' }}
+            </ATypographyText>
+          </ADescriptionsItem>
+        </ADescriptions>
+      </ACard>
 
-        <div class="inline-metrics">
-          <article
-            v-for="item in messageStats"
-            :key="item.label"
-            class="compact-metric"
-          >
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </article>
-        </div>
-
-        <div class="recipient-grid">
-          <article class="recipient-card">
-            <span class="overline">收件人</span>
-            <p>{{ mail.toRecipients.length ? mail.toRecipients.join('，') : '-' }}</p>
-          </article>
-          <article class="recipient-card">
-            <span class="overline">抄送</span>
-            <p>{{ mail.ccRecipients.length ? mail.ccRecipients.join('，') : '-' }}</p>
-          </article>
-          <article class="recipient-card">
-            <span class="overline">Internet Message ID</span>
-            <code class="mono-text">{{ mail.internetMessageId || '-' }}</code>
-          </article>
-        </div>
-      </div>
-
-      <div class="surface-card mail-body-panel">
-        <div class="panel-header">
-          <div>
-            <h2 class="section-title">邮件正文</h2>
-            <p class="section-desc">正文内容已做安全清洗，支持 HTML 与纯文本两种展示模式。</p>
-          </div>
-        </div>
+      <ACard class="message-body-card" :bordered="false" title="邮件正文">
+        <template #extra>
+          <ATag color="blue">
+            {{ mail.bodyType === 'html' ? 'HTML' : '纯文本' }}
+          </ATag>
+        </template>
 
         <div
           class="mail-body"
           v-html="sanitizedBody"
         />
-      </div>
+      </ACard>
     </template>
 
-    <div
-      v-else
-      class="empty-box"
-    >
-      正在加载邮件详情...
-    </div>
+    <ACard v-else :bordered="false">
+      <ASkeleton active :paragraph="{ rows: 8 }" />
+    </ACard>
   </section>
 </template>
