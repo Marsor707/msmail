@@ -357,21 +357,20 @@ function formatFileTimestamp(value: Date) {
   <section class="dashboard-page">
     <div class="dashboard-grid">
       <ACard title="批量导入账号" class="panel-card import-card" :bordered="false">
-        <div class="import-card__meta">
-          <ATypographyText type="secondary">
-            每行 1 条，格式固定：`email----password----client_id----refresh_token`
-          </ATypographyText>
-          <ATag color="blue">Ctrl / Cmd + Enter 提交</ATag>
-        </div>
-
         <AAlert
           type="info"
-          show-icon
-          message="导入说明"
-          description="重复邮箱会覆盖旧配置，并清空旧的 Access Token 缓存。页面仅展示必要状态，不回显密码和 Token 明文。"
-        />
+        >
+          <template #description>
+            <div class="import-card__description">
+              <p>
+                每行 1 条，格式固定：
+                <code>email----password----client_id----refresh_token</code>
+              </p>
+            </div>
+          </template>
+        </AAlert>
 
-        <AForm layout="vertical" style="margin-top: 20px">
+        <AForm layout="vertical" style="margin-top: 16px">
           <AFormItem label="导入内容">
             <ATextarea
               v-model:value="importText"
