@@ -189,7 +189,7 @@ function isAccountSelected(accountId: number) {
   return selectedAccountIdSet.value.has(accountId)
 }
 
-async function submitImport(text = importText.value) {
+async function importAccounts(text: string) {
   importLoading.value = true
   importError.value = ''
   importResultOpen.value = false
@@ -215,6 +215,10 @@ async function submitImport(text = importText.value) {
   await refresh()
   message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
   importLoading.value = false
+}
+
+async function submitImport() {
+  await importAccounts(importText.value)
 }
 
 function openImportFileSelector() {
@@ -249,7 +253,7 @@ async function handleImportFileChange(event: Event) {
   }
 
   importText.value = normalizedText
-  await submitImport(normalizedText)
+  await importAccounts(normalizedText)
 }
 
 function closeImportResult() {
