@@ -110,11 +110,15 @@ function formatCompactDate(value: string) {
 
         <div class="page-toolbar">
           <div class="page-toolbar__field">
-            <ASelect v-model:value="limit" :options="limitOptions" />
+            <ASelect
+              v-model:value="limit"
+              class="page-toolbar__select"
+              :options="limitOptions"
+            />
           </div>
 
-          <NuxtLink to="/">
-            <AButton>
+          <NuxtLink to="/" class="page-toolbar__link">
+            <AButton class="page-toolbar__button">
               <template #icon>
                 <ArrowLeftOutlined />
               </template>
@@ -122,7 +126,11 @@ function formatCompactDate(value: string) {
             </AButton>
           </NuxtLink>
 
-          <AButton :loading="pending" @click="reloadMails">
+          <AButton
+            class="page-toolbar__button"
+            :loading="pending"
+            @click="reloadMails"
+          >
             <template #icon>
               <ReloadOutlined />
             </template>

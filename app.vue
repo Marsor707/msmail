@@ -1,6 +1,13 @@
 <script setup lang="ts">
 const route = useRoute()
-const showHeader = computed(() => route.path !== '/')
+const isMailboxPage = computed(() => route.path.startsWith('/account/'))
+const showHeader = computed(() => {
+  if (route.path === '/') {
+    return false
+  }
+
+  return !isMailboxPage.value
+})
 
 const pageLabel = computed(() => {
   if (route.path === '/') {
@@ -32,7 +39,7 @@ const themeConfig = {
 <template>
   <AConfigProvider :theme="themeConfig">
     <AApp>
-      <ALayout class="app-layout">
+      <ALayout :class="['app-layout', { 'app-layout--mailbox': isMailboxPage }]">
         <ALayoutHeader v-if="showHeader" class="app-header">
           <div class="app-header__inner">
             <NuxtLink to="/" class="app-brand">
@@ -49,7 +56,14 @@ const themeConfig = {
           </div>
         </ALayoutHeader>
 
-        <ALayoutContent :class="['app-content', { 'app-content--home': !showHeader }]">
+        <ALayoutContent
+          :class="[
+            'app-content',
+            {
+              'app-content--no-header': !showHeader,
+            },
+          ]"
+        >
           <div class="app-content__inner">
             <NuxtPage />
           </div>

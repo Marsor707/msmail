@@ -52,6 +52,11 @@ code {
   background: transparent;
 }
 
+.app-layout--mailbox,
+.app-layout--mailbox .app-content {
+  background: var(--app-bg);
+}
+
 .app-header {
   position: sticky;
   top: 0;
@@ -128,7 +133,7 @@ code {
   background: transparent;
 }
 
-.app-content--home {
+.app-content--no-header {
   padding-top: 20px;
 }
 
@@ -290,14 +295,32 @@ code {
 
 .page-toolbar {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
 }
 
 .page-toolbar__field {
-  min-width: 150px;
+  flex: 0 0 152px;
+  width: 152px;
+  min-width: 0;
+}
+
+.page-toolbar__select {
+  width: 100%;
+}
+
+.page-toolbar__link {
+  flex: 0 0 148px;
+}
+
+.page-toolbar__button.ant-btn,
+.page-toolbar__link .ant-btn {
+  width: 148px;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .summary-grid {
@@ -532,6 +555,12 @@ code {
     align-items: stretch;
   }
 
+  .page-toolbar {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .import-actions {
     gap: 8px;
   }
@@ -543,6 +572,15 @@ code {
   .page-toolbar__field {
     width: 100%;
     min-width: 0;
+  }
+
+  .page-toolbar > * {
+    width: 100%;
+  }
+
+  .page-toolbar .ant-btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .mail-item__title,
