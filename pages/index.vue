@@ -15,6 +15,7 @@ const importLoading = ref(false)
 const deletingId = ref<number | null>(null)
 const exportLoading = ref(false)
 const importResult = ref<ImportAccountsResult | null>(null)
+const importResultOpen = ref(false)
 const importError = ref('')
 const isCompactLayout = ref(false)
 const selectedAccountIds = ref<number[]>([])
@@ -186,6 +187,7 @@ function isAccountSelected(accountId: number) {
 async function submitImport() {
   importLoading.value = true
   importError.value = ''
+  importResultOpen.value = false
   importResult.value = null
 
   const response = await useApiRequest<ImportAccountsResult>('/api/accounts/import', {
@@ -203,10 +205,15 @@ async function submitImport() {
   }
 
   importResult.value = response.data
+  importResultOpen.value = true
   importText.value = ''
   await refresh()
   message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
   importLoading.value = false
+}
+
+function closeImportResult() {
+  importResultOpen.value = false
 }
 
 async function exportSelectedAccounts() {
@@ -401,54 +408,6 @@ function formatFileTimestamp(value: Date) {
           :message="importError"
         />
 
-        <ACard
-          v-if="importResult"
-          size="small"
-          class="import-result"
-          :bordered="false"
-        >
-          <AResult
-            status="success"
-            :title="`成功写入 ${importResult.successCount} 条账号`"
-            :sub-title="`共解析 ${importResult.totalLines} 行，其中新增 ${importResult.createdCount} 条、更新 ${importResult.updatedCount} 条。`"
-            class="import-result__desc"
-          />
-
-          <ADescriptions size="small" :column="isCompactLayout ? 1 : 2" bordered>
-            <ADescriptionsItem label="解析行数">
-              {{ importResult.totalLines }}
-            </ADescriptionsItem>
-            <ADescriptionsItem label="成功写入">
-              {{ importResult.successCount }}
-            </ADescriptionsItem>
-            <ADescriptionsItem label="新增账号">
-              {{ importResult.createdCount }}
-            </ADescriptionsItem>
-            <ADescriptionsItem label="覆盖更新">
-              {{ importResult.updatedCount }}
-            </ADescriptionsItem>
-          </ADescriptions>
-
-          <AAlert
-            v-if="importResult.errorCount > 0"
-            style="margin-top: 16px"
-            type="warning"
-            show-icon
-            :message="`有 ${importResult.errorCount} 行导入失败`"
-          />
-
-          <AList
-            v-if="importResult.errorCount > 0"
-            style="margin-top: 12px"
-            size="small"
-            bordered
-            :data-source="importResult.errors"
-          >
-            <template #renderItem="{ item }">
-              <AListItem>第 {{ item.line }} 行：{{ item.reason }}</AListItem>
-            </template>
-          </AList>
-        </ACard>
       </ACard>
 
       <div class="dashboard-main__stack">
@@ -651,5 +610,63 @@ function formatFileTimestamp(value: Date) {
         </ACard>
       </div>
     </div>
+
+    <Modal
+      :open="importResultOpen"
+      title="导入结果"
+      width="720px"
+      :mask-closable="true"
+      @cancel="closeImportResult"
+    >
+      <div v-if="importResult" class="import-result-modal__content">
+        <AResult
+          status="success"
+          :title="`成功写入 ${importResult.successCount} 条账号`"
+          :sub-title="`共解析 ${importResult.totalLines} 行，其中新增 ${importResult.createdCount} 条、更新 ${importResult.updatedCount} 条。`"
+          class="import-result__desc"
+        />
+
+        <ADescriptions size="small" :column="isCompactLayout ? 1 : 2" bordered>
+          <ADescriptionsItem label="解析行数">
+            {{ importResult.totalLines }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="成功写入">
+            {{ importResult.successCount }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="新增账号">
+            {{ importResult.createdCount }}
+          </ADescriptionsItem>
+          <ADescriptionsItem label="覆盖更新">
+            {{ importResult.updatedCount }}
+          </ADescriptionsItem>
+        </ADescriptions>
+
+        <AAlert
+          v-if="importResult.errorCount > 0"
+          class="import-result__alert"
+          type="warning"
+          show-icon
+          :message="`有 ${importResult.errorCount} 行导入失败`"
+        />
+
+        <AList
+          v-if="importResult.errorCount > 0"
+          class="import-result__errors"
+          size="small"
+          bordered
+          :data-source="importResult.errors"
+        >
+          <template #renderItem="{ item }">
+            <AListItem>第 {{ item.line }} 行：{{ item.reason }}</AListItem>
+          </template>
+        </AList>
+      </div>
+
+      <template #footer>
+        <AButton type="primary" @click="closeImportResult">
+          知道了
+        </AButton>
+      </template>
+    </Modal>
   </section>
 </template>

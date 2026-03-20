@@ -196,12 +196,21 @@ code {
   margin-top: 2px;
 }
 
-.import-result {
-  margin-top: 20px;
-}
-
 .import-result__desc {
   margin-bottom: 16px;
+}
+
+.import-result__alert {
+  margin-top: 16px;
+}
+
+.import-result__errors {
+  margin-top: 12px;
+}
+
+.import-result-modal__content {
+  display: grid;
+  gap: 0;
 }
 
 .summary-card__title {
