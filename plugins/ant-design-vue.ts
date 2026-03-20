@@ -3,6 +3,7 @@ import App from 'ant-design-vue/es/app'
 import Breadcrumb from 'ant-design-vue/es/breadcrumb'
 import Button from 'ant-design-vue/es/button'
 import Card from 'ant-design-vue/es/card'
+import Checkbox from 'ant-design-vue/es/checkbox'
 import Col from 'ant-design-vue/es/col'
 import ConfigProvider from 'ant-design-vue/es/config-provider'
 import Descriptions from 'ant-design-vue/es/descriptions'
@@ -27,6 +28,7 @@ const components = [
   Breadcrumb,
   Button,
   Card,
+  Checkbox,
   Col,
   ConfigProvider,
   Descriptions,

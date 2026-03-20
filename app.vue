@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
+const showHeader = computed(() => route.path !== '/')
 
 const pageLabel = computed(() => {
   if (route.path === '/') {
@@ -32,7 +33,7 @@ const themeConfig = {
   <AConfigProvider :theme="themeConfig">
     <AApp>
       <ALayout class="app-layout">
-        <ALayoutHeader class="app-header">
+        <ALayoutHeader v-if="showHeader" class="app-header">
           <div class="app-header__inner">
             <NuxtLink to="/" class="app-brand">
               <span class="app-brand__mark">MS</span>
@@ -48,7 +49,7 @@ const themeConfig = {
           </div>
         </ALayoutHeader>
 
-        <ALayoutContent class="app-content">
+        <ALayoutContent :class="['app-content', { 'app-content--home': !showHeader }]">
           <div class="app-content__inner">
             <NuxtPage />
           </div>

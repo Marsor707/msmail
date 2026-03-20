@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   DeleteOutlined,
+  DownloadOutlined,
   MailOutlined,
   ReloadOutlined,
   UploadOutlined,
@@ -12,9 +13,11 @@ import type { AccountListItem, ImportAccountsResult } from '~/shared/types'
 const importText = ref('')
 const importLoading = ref(false)
 const deletingId = ref<number | null>(null)
+const exportLoading = ref(false)
 const importResult = ref<ImportAccountsResult | null>(null)
 const importError = ref('')
 const isCompactLayout = ref(false)
+const selectedAccountIds = ref<number[]>([])
 
 let compactLayoutQuery: MediaQueryList | null = null
 
@@ -26,6 +29,12 @@ const {
 
 const accounts = computed(() => accountsData.value?.data ?? [])
 const canSubmitImport = computed(() => importText.value.trim().length > 0 && !importLoading.value)
+const selectedAccountIdSet = computed(() => new Set(selectedAccountIds.value))
+const selectedAccounts = computed(() =>
+  accounts.value.filter((account) => selectedAccountIdSet.value.has(account.id)),
+)
+const selectedAccountCount = computed(() => selectedAccounts.value.length)
+const canExportAccounts = computed(() => selectedAccountCount.value > 0 && !exportLoading.value)
 
 const summaryCards = computed(() => {
   const accessibleCount = accounts.value.filter(
@@ -96,9 +105,27 @@ const accountColumns = [
   },
 ]
 
+const accountRowSelection = computed(() => ({
+  selectedRowKeys: selectedAccountIds.value,
+  onChange: (keys: Array<string | number>) => {
+    setSelectedAccountIds(keys)
+  },
+}))
+
 function syncCompactLayout(target?: MediaQueryList | MediaQueryListEvent) {
   isCompactLayout.value = target?.matches ?? compactLayoutQuery?.matches ?? false
 }
+
+watch(
+  accounts,
+  (nextAccounts) => {
+    const availableIds = new Set(nextAccounts.map((account) => account.id))
+    selectedAccountIds.value = selectedAccountIds.value.filter((id) => availableIds.has(id))
+  },
+  {
+    immediate: true,
+  },
+)
 
 function handleCompactLayoutChange(event: MediaQueryListEvent) {
   syncCompactLayout(event)
@@ -133,6 +160,29 @@ async function reloadAccounts() {
   await refresh()
 }
 
+function setSelectedAccountIds(ids: Array<number | string>) {
+  selectedAccountIds.value = Array.from(
+    new Set(
+      ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+  )
+}
+
+function setAccountSelected(accountId: number, checked: boolean) {
+  if (checked) {
+    setSelectedAccountIds([...selectedAccountIds.value, accountId])
+    return
+  }
+
+  selectedAccountIds.value = selectedAccountIds.value.filter((id) => id !== accountId)
+}
+
+function isAccountSelected(accountId: number) {
+  return selectedAccountIdSet.value.has(accountId)
+}
+
 async function submitImport() {
   importLoading.value = true
   importError.value = ''
@@ -159,6 +209,45 @@ async function submitImport() {
   importLoading.value = false
 }
 
+async function exportSelectedAccounts() {
+  if (!selectedAccounts.value.length) {
+    message.warning('请先勾选要导出的账号')
+    return
+  }
+
+  exportLoading.value = true
+
+  const response = await useApiRequest<string>('/api/accounts/export', {
+    method: 'POST',
+    body: {
+      ids: selectedAccounts.value.map((account) => account.id),
+    },
+  })
+
+  exportLoading.value = false
+
+  if (!response.success || response.data == null) {
+    message.error(response.message || '导出失败')
+    return
+  }
+
+  const downloadUrl = URL.createObjectURL(
+    new Blob(['\uFEFF', response.data], {
+      type: 'text/plain;charset=utf-8',
+    }),
+  )
+  const link = document.createElement('a')
+
+  link.href = downloadUrl
+  link.download = `accounts-export-${formatFileTimestamp(new Date())}.txt`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(downloadUrl)
+
+  message.success(`已导出 ${selectedAccountCount.value} 条账号`)
+}
+
 function handleImportKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' || (!event.ctrlKey && !event.metaKey)) {
     return
@@ -171,6 +260,13 @@ function handleImportKeydown(event: KeyboardEvent) {
   }
 
   void submitImport()
+}
+
+function handleMobileSelectionChange(
+  accountId: number,
+  event: { target?: { checked?: boolean } },
+) {
+  setAccountSelected(accountId, Boolean(event.target?.checked))
 }
 
 function removeAccount(account: AccountListItem) {
@@ -243,6 +339,17 @@ function getTokenState(account: AccountListItem) {
     color: 'error',
     detail: '缺少 Refresh Token，请重新导入。',
   }
+}
+
+function formatFileTimestamp(value: Date) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  const hours = String(value.getHours()).padStart(2, '0')
+  const minutes = String(value.getMinutes()).padStart(2, '0')
+  const seconds = String(value.getSeconds()).padStart(2, '0')
+
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`
 }
 </script>
 
@@ -346,7 +453,7 @@ function getTokenState(account: AccountListItem) {
       </ACard>
 
       <div class="dashboard-main__stack">
-        <ARow :gutter="[16, 16]" class="summary-grid">
+        <ARow :gutter="[16, 16]" class="summary-grid dashboard-summary-grid">
           <ACol
             v-for="item in summaryCards"
             :key="item.key"
@@ -379,12 +486,21 @@ function getTokenState(account: AccountListItem) {
               </ATypographyText>
             </div>
 
-            <AButton :loading="pending" @click="reloadAccounts">
-              <template #icon>
-                <ReloadOutlined />
-              </template>
-              刷新列表
-            </AButton>
+            <ASpace wrap>
+              <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
+                <template #icon>
+                  <DownloadOutlined />
+                </template>
+                导出选中（{{ selectedAccountCount }}）
+              </AButton>
+
+              <AButton :loading="pending" @click="reloadAccounts">
+                <template #icon>
+                  <ReloadOutlined />
+                </template>
+                刷新列表
+              </AButton>
+            </ASpace>
           </div>
 
           <AEmpty
@@ -402,7 +518,13 @@ function getTokenState(account: AccountListItem) {
             >
               <div class="account-mobile-card__header">
                 <div class="account-mobile-card__title">
-                  <ATypographyText strong>{{ account.email }}</ATypographyText>
+                  <ACheckbox
+                    class="account-mobile-card__selector"
+                    :checked="isAccountSelected(account.id)"
+                    @change="handleMobileSelectionChange(account.id, $event)"
+                  >
+                    <ATypographyText strong>{{ account.email }}</ATypographyText>
+                  </ACheckbox>
                   <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
                 </div>
 
@@ -461,6 +583,7 @@ function getTokenState(account: AccountListItem) {
             :data-source="accounts"
             :loading="pending"
             :pagination="{ pageSize: 8, showSizeChanger: false }"
+            :row-selection="accountRowSelection"
             :scroll="{ x: 1100 }"
             row-key="id"
           >

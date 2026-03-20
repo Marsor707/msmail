@@ -111,6 +111,52 @@ export async function listAccounts() {
   }))
 }
 
+export async function exportAccountsByIds(ids: number[]) {
+  const uniqueIds = Array.from(new Set(ids))
+
+  if (!uniqueIds.length) {
+    throw appError(400, 'INVALID_EXPORT_IDS', '请先勾选要导出的账号')
+  }
+
+  const accounts = await prisma.account.findMany({
+    where: {
+      id: {
+        in: uniqueIds,
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      password: true,
+      clientId: true,
+      refreshToken: true,
+    },
+  })
+
+  if (!accounts.length) {
+    throw appError(404, 'ACCOUNT_NOT_FOUND', '未找到可导出的账号')
+  }
+
+  const accountMap = new Map(accounts.map((account) => [account.id, account]))
+  const exportLines = uniqueIds.flatMap((id) => {
+    const account = accountMap.get(id)
+
+    if (!account) {
+      return []
+    }
+
+    return [
+      `${account.email}${EMAIL_SEPARATOR}${account.password}${EMAIL_SEPARATOR}${account.clientId}${EMAIL_SEPARATOR}${account.refreshToken}`,
+    ]
+  })
+
+  if (!exportLines.length) {
+    throw appError(404, 'ACCOUNT_NOT_FOUND', '未找到可导出的账号')
+  }
+
+  return exportLines.join('\n')
+}
+
 export async function deleteAccountById(id: number) {
   const existing = await prisma.account.findUnique({
     where: { id },

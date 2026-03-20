@@ -129,6 +129,10 @@ code {
   background: transparent;
 }
 
+.app-content--home {
+  padding-top: 20px;
+}
+
 .app-content__inner {
   width: min(1360px, 100%);
   min-width: 0;
@@ -171,7 +175,7 @@ code {
 
 .import-card {
   position: sticky;
-  top: 94px;
+  top: 20px;
 }
 
 .import-card__meta {
@@ -273,6 +277,10 @@ code {
   margin-top: 24px;
 }
 
+.dashboard-summary-grid {
+  margin-top: 0;
+}
+
 .account-mobile-list,
 .account-mobile-card__title {
   display: grid;
@@ -300,6 +308,15 @@ code {
 
 .account-mobile-card__actions {
   margin-top: 16px;
+}
+
+.account-mobile-card__selector {
+  align-items: flex-start;
+  width: 100%;
+}
+
+.account-mobile-card__selector .ant-checkbox + span {
+  min-width: 0;
 }
 
 .stat-card {
