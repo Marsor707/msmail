@@ -1,0 +1,40 @@
+# 依赖目录
+node_modules/
+
+# 构建与缓存产物
+.nuxt/
+.output/
+.data/
+dist/
+coverage/
+
+# 环境变量与潜在敏感配置
+.env
+.env.*
+!.env.example
+.npmrc
+
+# 数据库与本地数据文件
+prisma/data/*.db
+prisma/data/*.db-journal
+prisma/data/*.db-shm
+prisma/data/*.db-wal
+prisma/prisma/
+
+# 日志与运行时临时文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+
+# IDE 与系统垃圾文件
+.DS_Store
+.idea/
+.vscode/
+
+# 证书与私钥
+*.pem
+*.key
+*.p12
