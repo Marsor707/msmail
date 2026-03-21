@@ -8,7 +8,9 @@ export interface ApiEnvelope<T> {
 export interface AccountListItem {
   id: number
   email: string
+  password: string
   clientId: string
+  refreshToken: string
   hasRefreshToken: boolean
   hasAccessToken: boolean
   tokenExpires: string | null

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
   MailOutlined,
@@ -8,6 +9,7 @@ import {
 } from '@ant-design/icons-vue'
 import message from 'ant-design-vue/es/message'
 import Modal from 'ant-design-vue/es/modal'
+import { formatAccountImportLine } from '~/shared/account-format'
 import type { AccountListItem, ImportAccountsResult } from '~/shared/types'
 
 const importText = ref('')
@@ -79,7 +81,7 @@ const accountColumns = [
     title: '邮箱账号',
     dataIndex: 'email',
     key: 'email',
-    width: 260,
+    width: 300,
   },
   {
     title: 'Access 状态',
@@ -320,6 +322,18 @@ function handleMobileSelectionChange(
   setAccountSelected(accountId, Boolean(event.target?.checked))
 }
 
+async function copyAccountImportText(account: AccountListItem, event?: MouseEvent) {
+  event?.preventDefault()
+  event?.stopPropagation()
+
+  try {
+    await copyTextToClipboard(formatAccountImportLine(account))
+    message.success('已复制账号信息')
+  } catch {
+    message.error('复制失败，请重试')
+  }
+}
+
 function removeAccount(account: AccountListItem) {
   Modal.confirm({
     title: '确认删除账号',
@@ -389,6 +403,30 @@ function getTokenState(account: AccountListItem) {
     label: '配置缺失',
     color: 'error',
     detail: '缺少 Refresh Token，请重新导入。',
+  }
+}
+
+async function copyTextToClipboard(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '0'
+  textarea.style.left = '-9999px'
+  document.body.append(textarea)
+  textarea.focus()
+  textarea.select()
+
+  const copied = document.execCommand('copy')
+  textarea.remove()
+
+  if (!copied) {
+    throw new Error('COPY_FAILED')
   }
 }
 
@@ -550,13 +588,27 @@ function formatFileTimestamp(value: Date) {
               >
                 <div class="account-mobile-card__header">
                   <div class="account-mobile-card__title">
-                    <ACheckbox
-                      class="account-mobile-card__selector"
-                      :checked="isAccountSelected(account.id)"
-                      @change="handleMobileSelectionChange(account.id, $event)"
-                    >
-                      <ATypographyText strong>{{ account.email }}</ATypographyText>
-                    </ACheckbox>
+                    <div class="account-identity">
+                      <ACheckbox
+                        class="account-mobile-card__selector"
+                        :checked="isAccountSelected(account.id)"
+                        @change="handleMobileSelectionChange(account.id, $event)"
+                      >
+                        <ATypographyText strong>{{ account.email }}</ATypographyText>
+                      </ACheckbox>
+                      <AButton
+                        aria-label="复制账号信息"
+                        class="account-copy-button"
+                        type="text"
+                        size="small"
+                        title="复制账号信息"
+                        @click="copyAccountImportText(account, $event)"
+                      >
+                        <template #icon>
+                          <CopyOutlined />
+                        </template>
+                      </AButton>
+                    </div>
                     <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
                   </div>
 
@@ -619,7 +671,21 @@ function formatFileTimestamp(value: Date) {
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'email'">
                   <div class="table-cell__stack">
-                    <ATypographyText strong>{{ record.email }}</ATypographyText>
+                    <div class="account-identity">
+                      <ATypographyText strong>{{ record.email }}</ATypographyText>
+                      <AButton
+                        aria-label="复制账号信息"
+                        class="account-copy-button"
+                        type="text"
+                        size="small"
+                        title="复制账号信息"
+                        @click="copyAccountImportText(record, $event)"
+                      >
+                        <template #icon>
+                          <CopyOutlined />
+                        </template>
+                      </AButton>
+                    </div>
                     <ATypographyText type="secondary" class="table-cell__subtext">
                       创建于 {{ formatDate(record.createdAt) }}
                     </ATypographyText>

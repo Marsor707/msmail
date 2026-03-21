@@ -271,6 +271,28 @@ code {
   line-height: 1.5;
 }
 
+.account-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.account-identity .ant-typography,
+.account-identity .ant-checkbox-wrapper {
+  min-width: 0;
+}
+
+.account-copy-button.ant-btn {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.account-copy-button.ant-btn:hover,
+.account-copy-button.ant-btn:focus {
+  color: #1677ff;
+}
+
 .client-id-text {
   display: inline-block;
   max-width: 220px;

@@ -1,8 +1,10 @@
 import type { ImportAccountsResult, ImportLineError } from '~/shared/types'
+import {
+  ACCOUNT_IMPORT_SEPARATOR,
+  formatAccountImportLine,
+} from '~/shared/account-format'
 import { appError } from '~/server/utils/api'
 import { prisma } from '~/server/utils/prisma'
-
-const EMAIL_SEPARATOR = '----'
 
 export async function importAccountsFromText(rawText: string) {
   const lines = rawText
@@ -20,7 +22,7 @@ export async function importAccountsFromText(rawText: string) {
 
   for (const [index, line] of lines.entries()) {
     const lineNumber = index + 1
-    const parts = line.split(EMAIL_SEPARATOR)
+    const parts = line.split(ACCOUNT_IMPORT_SEPARATOR)
 
     if (parts.length !== 4) {
       errors.push({
@@ -102,7 +104,9 @@ export async function listAccounts() {
   return accounts.map((account: (typeof accounts)[number]) => ({
     id: account.id,
     email: account.email,
+    password: account.password,
     clientId: account.clientId,
+    refreshToken: account.refreshToken,
     hasRefreshToken: Boolean(account.refreshToken),
     hasAccessToken: Boolean(account.accessToken),
     tokenExpires: account.tokenExpires?.toISOString() ?? null,
@@ -146,7 +150,7 @@ export async function exportAccountsByIds(ids: number[]) {
     }
 
     return [
-      `${account.email}${EMAIL_SEPARATOR}${account.password}${EMAIL_SEPARATOR}${account.clientId}${EMAIL_SEPARATOR}${account.refreshToken}`,
+      formatAccountImportLine(account),
     ]
   })
 
