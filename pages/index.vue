@@ -5,6 +5,7 @@ import {
   DownloadOutlined,
   MailOutlined,
   ReloadOutlined,
+  SearchOutlined,
   UploadOutlined,
 } from '@ant-design/icons-vue'
 import message from 'ant-design-vue/es/message'
@@ -12,6 +13,7 @@ import Modal from 'ant-design-vue/es/modal'
 import { formatAccountImportLine } from '~/shared/account-format'
 import type { AccountListItem, ImportAccountsResult } from '~/shared/types'
 
+const ACCOUNT_SEARCH_DEBOUNCE = 300
 const importText = ref('')
 const importLoading = ref(false)
 const deletingId = ref<number | null>(null)
@@ -21,15 +23,34 @@ const importResultOpen = ref(false)
 const importError = ref('')
 const isCompactLayout = ref(false)
 const selectedAccountIds = ref<number[]>([])
+const accountSearchInput = ref('')
+const accountSearchKeyword = ref('')
 const importFileInput = useTemplateRef<HTMLInputElement>('importFileInput')
 
 let compactLayoutQuery: MediaQueryList | null = null
+let accountSearchTimer: ReturnType<typeof setTimeout> | null = null
+const accountListRequestUrl = computed(() => {
+  const params = new URLSearchParams()
+
+  if (accountSearchKeyword.value) {
+    params.set('keyword', accountSearchKeyword.value)
+  }
+
+  const queryString = params.toString()
+  return queryString ? `/api/accounts?${queryString}` : '/api/accounts'
+})
 
 const {
   data: accountsData,
   pending,
   refresh,
-} = await useAsyncData('accounts', () => useApiRequest<AccountListItem[]>('/api/accounts'))
+} = await useAsyncData(
+  'accounts',
+  () => useApiRequest<AccountListItem[]>(accountListRequestUrl.value),
+  {
+    watch: [accountSearchKeyword],
+  },
+)
 
 const accounts = computed(() => accountsData.value?.data ?? [])
 const accountTableLoading = computed(() => pending.value && accounts.value.length === 0)
@@ -40,6 +61,10 @@ const selectedAccounts = computed(() =>
 )
 const selectedAccountCount = computed(() => selectedAccounts.value.length)
 const canExportAccounts = computed(() => selectedAccountCount.value > 0 && !exportLoading.value)
+const isAccountSearchActive = computed(() => accountSearchKeyword.value.length > 0)
+const accountEmptyDescription = computed(() =>
+  isAccountSearchActive.value ? '未找到匹配的邮箱账号' : '当前还没有导入任何邮箱账号',
+)
 
 const summaryCards = computed(() => {
   const accessibleCount = accounts.value.filter(
@@ -52,24 +77,24 @@ const summaryCards = computed(() => {
   return [
     {
       key: 'total',
-      title: '已接入账号',
+      title: isAccountSearchActive.value ? '匹配账号' : '已接入账号',
       value: accounts.value.length,
       suffix: '个',
-      desc: '当前系统内已保存的邮箱账号数量。',
+      desc: '当前列表中的邮箱账号数量。',
     },
     {
       key: 'accessible',
       title: '可直接读取',
       value: accessibleCount,
       suffix: '个',
-      desc: 'Access Token 仍在有效期内，可直接查看邮件。',
+      desc: '当前列表中可直接查看邮件的账号数量。',
     },
     {
       key: 'refreshable',
       title: '待刷新',
       value: refreshableCount,
       suffix: '个',
-      desc: '已有 Refresh Token，但需要重新换取 Access Token。',
+      desc: '当前列表中待重新换取 Access Token 的账号数量。',
     },
   ]
 })
@@ -135,6 +160,25 @@ watch(
   },
 )
 
+watch(accountSearchInput, (nextValue) => {
+  if (accountSearchTimer) {
+    clearTimeout(accountSearchTimer)
+    accountSearchTimer = null
+  }
+
+  const keyword = nextValue.trim()
+
+  if (!keyword) {
+    accountSearchKeyword.value = ''
+    return
+  }
+
+  accountSearchTimer = setTimeout(() => {
+    accountSearchKeyword.value = keyword
+    accountSearchTimer = null
+  }, ACCOUNT_SEARCH_DEBOUNCE)
+})
+
 function handleCompactLayoutChange(event: MediaQueryListEvent) {
   syncCompactLayout(event)
 }
@@ -152,6 +196,11 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (accountSearchTimer) {
+    clearTimeout(accountSearchTimer)
+    accountSearchTimer = null
+  }
+
   if (!compactLayoutQuery) {
     return
   }
@@ -555,7 +604,19 @@ function formatFileTimestamp(value: Date) {
               </ATypographyText>
             </div>
 
-            <ASpace wrap>
+            <ASpace class="table-toolbar__actions" wrap>
+              <div class="table-toolbar__search">
+                <AInput
+                  v-model:value="accountSearchInput"
+                  allow-clear
+                  placeholder="搜索邮箱账号"
+                >
+                  <template #prefix>
+                    <SearchOutlined />
+                  </template>
+                </AInput>
+              </div>
+
               <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
                 <template #icon>
                   <DownloadOutlined />
@@ -575,7 +636,7 @@ function formatFileTimestamp(value: Date) {
           <ClientOnly>
             <AEmpty
               v-if="accounts.length === 0 && !pending"
-              description="当前还没有导入任何邮箱账号"
+              :description="accountEmptyDescription"
             />
 
             <div v-else-if="isCompactLayout" class="account-mobile-list">

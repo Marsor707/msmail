@@ -6,6 +6,10 @@ import {
 import { appError } from '~/server/utils/api'
 import { prisma } from '~/server/utils/prisma'
 
+interface ListAccountsOptions {
+  keyword?: string
+}
+
 export async function importAccountsFromText(rawText: string) {
   const lines = rawText
     .split(/\r?\n/)
@@ -94,8 +98,16 @@ export async function importAccountsFromText(rawText: string) {
   } satisfies ImportAccountsResult
 }
 
-export async function listAccounts() {
+export async function listAccounts(options: ListAccountsOptions = {}) {
+  const keyword = options.keyword?.trim()
   const accounts = await prisma.account.findMany({
+    where: keyword
+      ? {
+          email: {
+            contains: keyword,
+          },
+        }
+      : undefined,
     orderBy: {
       updatedAt: 'desc',
     },

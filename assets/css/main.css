@@ -22,13 +22,15 @@ body,
 
 html {
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 body {
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text-main);
   overflow-x: hidden;
+  overflow-y: auto;
+  /* body 才是实际滚动容器，稳定预留滚动条占位可避免左右抖动。 */
+  scrollbar-gutter: stable;
   background:
     radial-gradient(circle at top left, rgba(22, 119, 255, 0.12), transparent 22%),
     linear-gradient(180deg, #f7f9fc 0%, var(--app-bg) 100%);
@@ -249,6 +251,11 @@ code {
 .summary-card__desc {
   color: var(--text-secondary);
   line-height: 1.6;
+  min-height: 4.8em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .table-toolbar {
@@ -258,6 +265,24 @@ code {
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+}
+
+.table-toolbar__actions {
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.table-toolbar__search {
+  flex: 0 1 320px;
+  min-width: 220px;
+}
+
+.table-toolbar__search .ant-input-affix-wrapper,
+.table-toolbar__search .ant-input {
+  width: 100%;
+  border-radius: 999px;
 }
 
 .table-cell__stack {
@@ -458,7 +483,7 @@ code {
   flex-direction: column;
   justify-content: center;
   gap: 14px;
-  min-height: 138px;
+  min-height: 208px;
 }
 
 .stat-card__label {
@@ -660,6 +685,16 @@ code {
     gap: 8px;
   }
 
+  .table-toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .table-toolbar__search {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
   .import-action-button.ant-btn {
     padding-inline: 6px;
   }
@@ -693,7 +728,7 @@ code {
   }
 
   .stat-card .ant-card-body {
-    min-height: 124px;
+    min-height: 188px;
   }
 
   .stat-card__value,
