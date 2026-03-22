@@ -82,11 +82,9 @@ function escapeHtml(value: string) {
           <div class="page-card__header-main">
             <ABreadcrumb class="page-breadcrumb">
               <ABreadcrumbItem>
-                <NuxtLink to="/">账号管理</NuxtLink>
+                <NuxtLink to="/">首页工作台</NuxtLink>
               </ABreadcrumbItem>
-              <ABreadcrumbItem>
-                <NuxtLink :to="`/account/${encodeURIComponent(email)}`">{{ email }}</NuxtLink>
-              </ABreadcrumbItem>
+              <ABreadcrumbItem>{{ email }}</ABreadcrumbItem>
               <ABreadcrumbItem>邮件详情</ABreadcrumbItem>
             </ABreadcrumb>
 
@@ -105,12 +103,12 @@ function escapeHtml(value: string) {
             <ATag :color="mail.hasAttachments ? 'processing' : 'default'">
               {{ mail.hasAttachments ? '有附件' : '无附件' }}
             </ATag>
-            <NuxtLink :to="`/account/${encodeURIComponent(email)}`">
+            <NuxtLink to="/">
               <AButton>
                 <template #icon>
                   <ArrowLeftOutlined />
                 </template>
-                返回邮件列表
+                返回首页
               </AButton>
             </NuxtLink>
           </div>

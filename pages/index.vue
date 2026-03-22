@@ -3,7 +3,6 @@ import {
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
-  MailOutlined,
   ReloadOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -11,24 +10,40 @@ import {
 import message from 'ant-design-vue/es/message'
 import Modal from 'ant-design-vue/es/modal'
 import { formatAccountImportLine } from '~/shared/account-format'
-import type { AccountListItem, ImportAccountsResult } from '~/shared/types'
+import type {
+  AccountListItem,
+  ApiEnvelope,
+  ImportAccountsResult,
+  MailSummary,
+} from '~/shared/types'
 
 const ACCOUNT_SEARCH_DEBOUNCE = 300
 const importText = ref('')
 const importLoading = ref(false)
+const importError = ref('')
+const importModalOpen = ref(false)
+const importResult = ref<ImportAccountsResult | null>(null)
 const deletingId = ref<number | null>(null)
 const exportLoading = ref(false)
-const importResult = ref<ImportAccountsResult | null>(null)
-const importResultOpen = ref(false)
-const importError = ref('')
-const isCompactLayout = ref(false)
 const selectedAccountIds = ref<number[]>([])
+const selectedAccountId = ref<number | null>(null)
 const accountSearchInput = ref('')
 const accountSearchKeyword = ref('')
+const mailLimit = ref(20)
+const mailboxLoading = ref(false)
+const mailboxResponse = ref<ApiEnvelope<MailSummary[]>>(createSuccessEnvelope([]))
 const importFileInput = useTemplateRef<HTMLInputElement>('importFileInput')
 
-let compactLayoutQuery: MediaQueryList | null = null
+const mailLimitOptions = [
+  { value: 10, label: '最近 10 封' },
+  { value: 20, label: '最近 20 封' },
+  { value: 50, label: '最近 50 封' },
+  { value: 100, label: '最近 100 封' },
+]
+
 let accountSearchTimer: ReturnType<typeof setTimeout> | null = null
+let mailboxRequestId = 0
+
 const accountListRequestUrl = computed(() => {
   const params = new URLSearchParams()
 
@@ -52,8 +67,11 @@ const {
   },
 )
 
-const accounts = computed(() => accountsData.value?.data ?? [])
-const accountTableLoading = computed(() => pending.value && accounts.value.length === 0)
+const accountsResponse = computed(() => accountsData.value)
+const accounts = computed(() => accountsResponse.value?.data ?? [])
+const accountErrorMessage = computed(() =>
+  accountsResponse.value?.success === false ? accountsResponse.value.message : '',
+)
 const canSubmitImport = computed(() => importText.value.trim().length > 0 && !importLoading.value)
 const selectedAccountIdSet = computed(() => new Set(selectedAccountIds.value))
 const selectedAccounts = computed(() =>
@@ -61,99 +79,91 @@ const selectedAccounts = computed(() =>
 )
 const selectedAccountCount = computed(() => selectedAccounts.value.length)
 const canExportAccounts = computed(() => selectedAccountCount.value > 0 && !exportLoading.value)
-const isAccountSearchActive = computed(() => accountSearchKeyword.value.length > 0)
-const accountEmptyDescription = computed(() =>
-  isAccountSearchActive.value ? '未找到匹配的邮箱账号' : '当前还没有导入任何邮箱账号',
+const selectedAccount = computed(
+  () => accounts.value.find((account) => account.id === selectedAccountId.value) ?? null,
 )
-
-const summaryCards = computed(() => {
-  const accessibleCount = accounts.value.filter(
-    (item) => item.hasAccessToken && isFutureDate(item.tokenExpires),
-  ).length
-  const refreshableCount = accounts.value.filter(
-    (item) => item.hasRefreshToken && !isFutureDate(item.tokenExpires),
-  ).length
+const selectedEmail = computed(() => selectedAccount.value?.email ?? '')
+const mails = computed(() => mailboxResponse.value.data ?? [])
+const mailErrorMessage = computed(() =>
+  mailboxResponse.value.success === false ? mailboxResponse.value.message : '',
+)
+const accessibleAccountCount = computed(() =>
+  accounts.value.filter((item) => item.hasAccessToken && isFutureDate(item.tokenExpires)).length,
+)
+const refreshableAccountCount = computed(() =>
+  accounts.value.filter((item) => item.hasRefreshToken && !isFutureDate(item.tokenExpires)).length,
+)
+const currentTokenState = computed(() =>
+  selectedAccount.value ? getTokenState(selectedAccount.value) : null,
+)
+const mailboxOverviewItems = computed(() => {
+  if (!selectedAccount.value || !currentTokenState.value) {
+    return []
+  }
 
   return [
     {
-      key: 'total',
-      title: isAccountSearchActive.value ? '匹配账号' : '已接入账号',
-      value: accounts.value.length,
-      suffix: '个',
-      desc: '当前列表中的邮箱账号数量。',
+      key: 'token',
+      label: 'Token 状态',
+      value: currentTokenState.value.label,
+      desc: currentTokenState.value.detail,
+      tone: currentTokenState.value.color,
     },
     {
-      key: 'accessible',
-      title: '可直接读取',
-      value: accessibleCount,
-      suffix: '个',
-      desc: '当前列表中可直接查看邮件的账号数量。',
+      key: 'updatedAt',
+      label: '最近更新时间',
+      value: formatDate(selectedAccount.value.updatedAt),
+      desc: selectedAccount.value.hasAccessToken ? '已缓存 Access Token' : '尚未缓存 Access Token',
+      tone: 'default',
     },
     {
-      key: 'refreshable',
-      title: '待刷新',
-      value: refreshableCount,
-      suffix: '个',
-      desc: '当前列表中待重新换取 Access Token 的账号数量。',
+      key: 'mailCount',
+      label: '当前加载',
+      value: `${mails.value.length} 封`,
+      desc: `拉取范围：${mailLimit.value} 封`,
+      tone: 'default',
+    },
+    {
+      key: 'unreadCount',
+      label: '未读邮件',
+      value: `${mails.value.filter((mail) => !mail.isRead).length} 封`,
+      desc: '按当前拉取结果实时统计',
+      tone: 'default',
+    },
+    {
+      key: 'attachmentCount',
+      label: '包含附件',
+      value: `${mails.value.filter((mail) => mail.hasAttachments).length} 封`,
+      desc: '便于快速定位带附件邮件',
+      tone: 'default',
+    },
+    {
+      key: 'latestMail',
+      label: '最新来信',
+      value: mails.value[0]?.receivedAt ? formatCompactDate(mails.value[0].receivedAt) : '暂无',
+      desc: mails.value[0]?.subject || '当前没有读取到邮件',
+      tone: 'default',
     },
   ]
 })
-
-const ACCOUNT_SELECTION_COLUMN_WIDTH = 56
-
-const accountColumns = [
-  {
-    title: '邮箱账号',
-    dataIndex: 'email',
-    key: 'email',
-    width: 300,
-  },
-  {
-    title: 'Access 状态',
-    key: 'tokenState',
-    width: 280,
-  },
-  {
-    title: 'Client ID',
-    dataIndex: 'clientId',
-    key: 'clientId',
-    width: 260,
-  },
-  {
-    title: '最近更新时间',
-    key: 'updatedAt',
-    width: 260,
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 128,
-    fixed: 'right',
-  },
-]
-
-const accountTableScrollX = accountColumns.reduce(
-  (sum, column) => sum + (typeof column.width === 'number' ? column.width : 0),
-  ACCOUNT_SELECTION_COLUMN_WIDTH,
-)
-
-const accountRowSelection = computed(() => ({
-  columnWidth: ACCOUNT_SELECTION_COLUMN_WIDTH,
-  selectedRowKeys: selectedAccountIds.value,
-  onChange: (keys: Array<string | number>) => {
-    setSelectedAccountIds(keys)
-  },
-}))
-
-function syncCompactLayout(target?: MediaQueryList | MediaQueryListEvent) {
-  isCompactLayout.value = target?.matches ?? compactLayoutQuery?.matches ?? false
-}
 
 watch(
   accounts,
   (nextAccounts) => {
     const availableIds = new Set(nextAccounts.map((account) => account.id))
     selectedAccountIds.value = selectedAccountIds.value.filter((id) => availableIds.has(id))
+
+    if (!nextAccounts.length) {
+      selectedAccountId.value = null
+      return
+    }
+
+    if (selectedAccountId.value && availableIds.has(selectedAccountId.value)) {
+      return
+    }
+
+    const firstAccount = nextAccounts[0]
+    selectedAccountId.value = firstAccount ? firstAccount.id : null
   },
   {
     immediate: true,
@@ -179,20 +189,14 @@ watch(accountSearchInput, (nextValue) => {
   }, ACCOUNT_SEARCH_DEBOUNCE)
 })
 
-function handleCompactLayoutChange(event: MediaQueryListEvent) {
-  syncCompactLayout(event)
-}
-
-onMounted(() => {
-  compactLayoutQuery = window.matchMedia('(max-width: 1100px)')
-  syncCompactLayout(compactLayoutQuery)
-
-  if (typeof compactLayoutQuery.addEventListener === 'function') {
-    compactLayoutQuery.addEventListener('change', handleCompactLayoutChange)
+watch([selectedEmail, mailLimit], ([nextEmail, nextLimit], [prevEmail, prevLimit]) => {
+  if (nextEmail === prevEmail && nextLimit === prevLimit) {
     return
   }
 
-  compactLayoutQuery.addListener(handleCompactLayoutChange)
+  void loadMailboxMessages({
+    clearBeforeLoad: nextEmail !== prevEmail || nextLimit !== prevLimit,
+  })
 })
 
 onBeforeUnmount(() => {
@@ -200,21 +204,69 @@ onBeforeUnmount(() => {
     clearTimeout(accountSearchTimer)
     accountSearchTimer = null
   }
-
-  if (!compactLayoutQuery) {
-    return
-  }
-
-  if (typeof compactLayoutQuery.removeEventListener === 'function') {
-    compactLayoutQuery.removeEventListener('change', handleCompactLayoutChange)
-    return
-  }
-
-  compactLayoutQuery.removeListener(handleCompactLayoutChange)
 })
+
+await loadMailboxMessages()
 
 async function reloadAccounts() {
   await refresh()
+}
+
+async function reloadMailboxMessages() {
+  await loadMailboxMessages({
+    clearBeforeLoad: false,
+  })
+}
+
+async function loadMailboxMessages(options: { clearBeforeLoad?: boolean } = {}) {
+  const email = selectedEmail.value
+  const requestId = ++mailboxRequestId
+
+  if (!email) {
+    mailboxResponse.value = createSuccessEnvelope([])
+    mailboxLoading.value = false
+    return
+  }
+
+  mailboxLoading.value = true
+
+  if (options.clearBeforeLoad ?? true) {
+    mailboxResponse.value = createSuccessEnvelope([])
+  }
+
+  const response = await useApiRequest<MailSummary[]>(
+    `/api/accounts/${encodeURIComponent(email)}/messages?limit=${mailLimit.value}`,
+  )
+
+  if (requestId !== mailboxRequestId) {
+    return
+  }
+
+  mailboxResponse.value = response.success
+    ? createSuccessEnvelope(Array.isArray(response.data) ? response.data : [])
+    : {
+        ...response,
+        data: [],
+      }
+  mailboxLoading.value = false
+}
+
+function openImportModal() {
+  importError.value = ''
+  importResult.value = null
+  importModalOpen.value = true
+}
+
+function closeImportModal() {
+  if (importLoading.value) {
+    return
+  }
+
+  importModalOpen.value = false
+}
+
+function selectAccount(accountId: number) {
+  selectedAccountId.value = accountId
 }
 
 function setSelectedAccountIds(ids: Array<number | string>) {
@@ -240,10 +292,17 @@ function isAccountSelected(accountId: number) {
   return selectedAccountIdSet.value.has(accountId)
 }
 
+function handleMailboxSelectionChange(
+  accountId: number,
+  event: { stopPropagation?: () => void, target?: { checked?: boolean } },
+) {
+  event.stopPropagation?.()
+  setAccountSelected(accountId, Boolean(event.target?.checked))
+}
+
 async function importAccounts(text: string) {
   importLoading.value = true
   importError.value = ''
-  importResultOpen.value = false
   importResult.value = null
 
   const response = await useApiRequest<ImportAccountsResult>('/api/accounts/import', {
@@ -261,7 +320,6 @@ async function importAccounts(text: string) {
   }
 
   importResult.value = response.data
-  importResultOpen.value = true
   importText.value = ''
   await refresh()
   message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
@@ -305,10 +363,6 @@ async function handleImportFileChange(event: Event) {
 
   importText.value = normalizedText
   await importAccounts(normalizedText)
-}
-
-function closeImportResult() {
-  importResultOpen.value = false
 }
 
 async function exportSelectedAccounts() {
@@ -364,13 +418,6 @@ function handleImportKeydown(event: KeyboardEvent) {
   void submitImport()
 }
 
-function handleMobileSelectionChange(
-  accountId: number,
-  event: { target?: { checked?: boolean } },
-) {
-  setAccountSelected(accountId, Boolean(event.target?.checked))
-}
-
 async function copyAccountImportText(account: AccountListItem, event?: MouseEvent) {
   event?.preventDefault()
   event?.stopPropagation()
@@ -383,7 +430,12 @@ async function copyAccountImportText(account: AccountListItem, event?: MouseEven
   }
 }
 
-function removeAccount(account: AccountListItem) {
+function removeAccount(account: AccountListItem, event?: MouseEvent) {
+  event?.preventDefault()
+  event?.stopPropagation()
+
+  const fallbackAccountId = getAdjacentAccountId(account.id)
+
   Modal.confirm({
     title: '确认删除账号',
     content: `删除后将移除邮箱 ${account.email} 的本地配置记录。`,
@@ -407,9 +459,25 @@ function removeAccount(account: AccountListItem) {
       }
 
       await refresh()
+
+      if (account.id === selectedAccountId.value && fallbackAccountId) {
+        const nextAccount = accounts.value.find((item) => item.id === fallbackAccountId)
+        selectedAccountId.value = nextAccount?.id ?? accounts.value[0]?.id ?? null
+      }
+
       message.success('账号已删除')
     },
   })
+}
+
+function getAdjacentAccountId(accountId: number) {
+  const currentIndex = accounts.value.findIndex((account) => account.id === accountId)
+
+  if (currentIndex < 0) {
+    return null
+  }
+
+  return accounts.value[currentIndex + 1]?.id ?? accounts.value[currentIndex - 1]?.id ?? null
 }
 
 function formatDate(value: string | null) {
@@ -420,6 +488,19 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat('zh-CN', {
     dateStyle: 'medium',
     timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+function formatCompactDate(value: string) {
+  if (!value) {
+    return '暂无'
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(value))
 }
 
@@ -444,14 +525,14 @@ function getTokenState(account: AccountListItem) {
     return {
       label: '待刷新',
       color: 'warning',
-      detail: account.tokenExpires ? 'Access Token 已过期' : '尚未生成 Access Token。',
+      detail: account.tokenExpires ? 'Access Token 已过期' : '尚未生成 Access Token',
     }
   }
 
   return {
     label: '配置缺失',
     color: 'error',
-    detail: '缺少 Refresh Token，请重新导入。',
+    detail: '缺少 Refresh Token，请重新导入',
   }
 }
 
@@ -489,336 +570,395 @@ function formatFileTimestamp(value: Date) {
 
   return `${year}${month}${day}-${hours}${minutes}${seconds}`
 }
+
+function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
+  return {
+    success: true,
+    code: 'OK',
+    message: '',
+    data,
+  }
+}
 </script>
 
 <template>
-  <section class="dashboard-page">
-    <div class="dashboard-grid">
-      <ACard title="批量导入账号" class="panel-card import-card" :bordered="false">
-        <AAlert
-          type="info"
-        >
-          <template #description>
-            <div class="import-card__description">
-              <p>
-                每行 1 条，格式固定：
-                <code>email----password----client_id----refresh_token</code>
-              </p>
-              <p>支持直接粘贴文本，或选择本地 TXT 文件后自动导入。</p>
+  <section class="workspace-page">
+    <div class="workspace-grid">
+      <ACard class="panel-card workspace-sidebar" :bordered="false">
+        <div class="workspace-sidebar__hero">
+          <div class="workspace-sidebar__hero-main">
+            <ATypographyTitle :level="3" style="margin: 0">
+              邮箱工作台
+            </ATypographyTitle>
+          </div>
+
+          <div class="workspace-sidebar__stats">
+            <div class="workspace-sidebar__stat">
+              <strong>{{ accounts.length }}</strong>
+              <span>邮箱账号</span>
             </div>
-          </template>
-        </AAlert>
+            <div class="workspace-sidebar__stat">
+              <strong>{{ accessibleAccountCount }}</strong>
+              <span>可直接读取</span>
+            </div>
+            <div class="workspace-sidebar__stat">
+              <strong>{{ refreshableAccountCount }}</strong>
+              <span>待刷新</span>
+            </div>
+          </div>
+        </div>
 
-        <AForm layout="vertical" style="margin-top: 16px">
-          <AFormItem label="导入内容">
-            <ATextarea
-              v-model:value="importText"
-              :rows="14"
-              placeholder="user@example.com----password----client-id----refresh-token"
-              @keydown="handleImportKeydown"
-            />
-          </AFormItem>
-        </AForm>
-
-        <input
-          ref="importFileInput"
-          class="import-file-input"
-          type="file"
-          accept=".txt,text/plain"
-          @change="handleImportFileChange"
-        >
-
-        <div class="import-actions">
-          <AButton
-            class="import-action-button"
-            type="primary"
-            :loading="importLoading"
-            :disabled="!canSubmitImport"
-            @click="submitImport"
-          >
-            <template #icon>
+        <div class="workspace-sidebar__toolbar">
+          <AButton type="primary" @click="openImportModal">
+            <span class="toolbar-button__content">
               <UploadOutlined />
-            </template>
-            开始导入
+              <span>导入账号</span>
+            </span>
           </AButton>
-          <AButton
-            class="import-action-button"
-            :disabled="importLoading"
-            @click="openImportFileSelector"
-          >
-            <template #icon>
-              <UploadOutlined />
-            </template>
-            本地导入
+
+          <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
+            <span class="toolbar-button__content">
+              <DownloadOutlined />
+              <span>导出选中（{{ selectedAccountCount }}）</span>
+            </span>
           </AButton>
-          <AButton
-            class="import-action-button"
-            :disabled="importLoading || !importText"
-            @click="importText = ''"
-          >
-            清空内容
+
+          <AButton :loading="pending" @click="reloadAccounts">
+            <span class="toolbar-button__content">
+              <ReloadOutlined />
+              <span>刷新列表</span>
+            </span>
           </AButton>
         </div>
 
+        <AInput
+          v-model:value="accountSearchInput"
+          allow-clear
+          class="workspace-sidebar__search"
+          placeholder="搜索邮箱账号"
+        >
+          <template #prefix>
+            <SearchOutlined />
+          </template>
+        </AInput>
+
         <AAlert
-          v-if="importError"
-          style="margin-top: 20px"
+          v-if="accountErrorMessage"
           type="error"
           show-icon
-          :message="importError"
+          :message="accountErrorMessage"
         />
 
+        <div class="workspace-sidebar__list">
+          <ASkeleton
+            v-if="pending && accounts.length === 0"
+            active
+            :paragraph="{ rows: 8 }"
+          />
+
+          <AEmpty
+            v-else-if="accounts.length === 0"
+            :description="accountSearchKeyword ? '没有找到匹配的邮箱账号' : '当前还没有导入任何邮箱账号'"
+          >
+            <AButton type="primary" @click="openImportModal">
+              <template #icon>
+                <UploadOutlined />
+              </template>
+              导入首批账号
+            </AButton>
+          </AEmpty>
+
+          <div v-else class="mailbox-list">
+            <article
+              v-for="account in accounts"
+              :key="account.id"
+              :class="[
+                'mailbox-list__item',
+                {
+                  'mailbox-list__item--active': account.id === selectedAccountId,
+                },
+              ]"
+              role="button"
+              tabindex="0"
+              @click="selectAccount(account.id)"
+              @keydown.enter.prevent="selectAccount(account.id)"
+              @keydown.space.prevent="selectAccount(account.id)"
+            >
+              <div class="mailbox-list__item-head">
+                <div class="mailbox-list__item-leading">
+                  <ACheckbox
+                    :checked="isAccountSelected(account.id)"
+                    @click.stop
+                    @change="handleMailboxSelectionChange(account.id, $event)"
+                  />
+
+                  <div class="mailbox-list__item-identity">
+                    <strong>{{ account.email }}</strong>
+                    <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
+                  </div>
+                </div>
+
+                <ATag :color="getTokenState(account).color">
+                  {{ getTokenState(account).label }}
+                </ATag>
+              </div>
+
+              <div class="mailbox-list__item-body">
+                <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
+                <span class="table-cell__subtext">最近更新：{{ formatDate(account.updatedAt) }}</span>
+              </div>
+
+              <div class="mailbox-list__item-actions">
+                <AButton
+                  aria-label="复制账号信息"
+                  class="account-copy-button"
+                  type="text"
+                  size="small"
+                  title="复制账号信息"
+                  @click="copyAccountImportText(account, $event)"
+                >
+                  <template #icon>
+                    <CopyOutlined />
+                  </template>
+                </AButton>
+
+                <AButton
+                  aria-label="删除账号"
+                  danger
+                  type="text"
+                  size="small"
+                  title="删除账号"
+                  :loading="deletingId === account.id"
+                  @click="removeAccount(account, $event)"
+                >
+                  <template #icon>
+                    <DeleteOutlined />
+                  </template>
+                </AButton>
+              </div>
+            </article>
+          </div>
+        </div>
       </ACard>
 
-      <div class="dashboard-main__stack">
-        <ARow :gutter="[16, 16]" class="summary-grid dashboard-summary-grid">
-          <ACol
-            v-for="item in summaryCards"
-            :key="item.key"
-            :xs="24"
-            :sm="24"
-            :md="8"
-          >
-            <ACard class="stat-card" :bordered="false">
-              <div class="summary-card__title">
-                <ATypographyText strong>{{ item.title }}</ATypographyText>
-                <MailOutlined v-if="item.key === 'total'" />
-                <ReloadOutlined v-else-if="item.key === 'refreshable'" />
-                <UploadOutlined v-else />
+      <div class="workspace-main">
+        <ACard class="page-card mailbox-overview-card" :bordered="false">
+          <template v-if="selectedAccount">
+            <div class="mailbox-overview__header">
+              <div class="mailbox-overview__header-main">
+                <ATypographyText type="secondary">
+                  当前邮箱
+                </ATypographyText>
+                <ATypographyTitle :level="2" style="margin: 0">
+                  {{ selectedAccount.email }}
+                </ATypographyTitle>
               </div>
 
-              <AStatistic :value="item.value" :suffix="item.suffix" />
-              <div class="summary-card__desc">{{ item.desc }}</div>
-            </ACard>
-          </ACol>
-        </ARow>
-
-        <ACard class="panel-card" :bordered="false">
-          <div class="table-toolbar">
-            <div>
-              <ATypographyTitle :level="4" style="margin-bottom: 4px">
-                账号管理
-              </ATypographyTitle>
-              <ATypographyText type="secondary">
-                统一查看账号状态、Token 可用性与邮件入口。
-              </ATypographyText>
-            </div>
-
-            <ASpace class="table-toolbar__actions" wrap>
-              <div class="table-toolbar__search">
-                <AInput
-                  v-model:value="accountSearchInput"
-                  allow-clear
-                  placeholder="搜索邮箱账号"
-                >
-                  <template #prefix>
-                    <SearchOutlined />
-                  </template>
-                </AInput>
-              </div>
-
-              <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
-                <template #icon>
-                  <DownloadOutlined />
-                </template>
-                导出选中（{{ selectedAccountCount }}）
-              </AButton>
-
-              <AButton :loading="pending" @click="reloadAccounts">
+              <AButton :loading="mailboxLoading" @click="reloadMailboxMessages">
                 <template #icon>
                   <ReloadOutlined />
                 </template>
-                刷新列表
+                刷新邮件
               </AButton>
-            </ASpace>
-          </div>
-
-          <ClientOnly>
-            <AEmpty
-              v-if="accounts.length === 0 && !pending"
-              :description="accountEmptyDescription"
-            />
-
-            <div v-else-if="isCompactLayout" class="account-mobile-list">
-              <ACard
-                v-for="account in accounts"
-                :key="account.id"
-                size="small"
-                class="account-mobile-card"
-                :bordered="false"
-              >
-                <div class="account-mobile-card__header">
-                  <div class="account-mobile-card__title">
-                    <div class="account-identity">
-                      <ACheckbox
-                        class="account-mobile-card__selector"
-                        :checked="isAccountSelected(account.id)"
-                        @change="handleMobileSelectionChange(account.id, $event)"
-                      >
-                        <ATypographyText strong>{{ account.email }}</ATypographyText>
-                      </ACheckbox>
-                      <AButton
-                        aria-label="复制账号信息"
-                        class="account-copy-button"
-                        type="text"
-                        size="small"
-                        title="复制账号信息"
-                        @click="copyAccountImportText(account, $event)"
-                      >
-                        <template #icon>
-                          <CopyOutlined />
-                        </template>
-                      </AButton>
-                    </div>
-                    <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
-                  </div>
-
-                  <ATag :color="getTokenState(account).color">
-                    {{ getTokenState(account).label }}
-                  </ATag>
-                </div>
-
-                <ADescriptions :column="1" size="small">
-                  <ADescriptionsItem label="Access 状态">
-                    <div class="table-cell__stack">
-                      <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
-                      <span class="table-cell__subtext">
-                        {{ account.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
-                      </span>
-                    </div>
-                  </ADescriptionsItem>
-                  <ADescriptionsItem label="Client ID">
-                    <ATypographyText
-                      class="client-id-text"
-                      :content="account.clientId"
-                      :ellipsis="{ tooltip: account.clientId }"
-                    />
-                  </ADescriptionsItem>
-                  <ADescriptionsItem label="最近更新时间">
-                    {{ formatDate(account.updatedAt) }}
-                  </ADescriptionsItem>
-                </ADescriptions>
-
-                <ASpace class="account-mobile-card__actions" wrap>
-                  <NuxtLink :to="`/account/${encodeURIComponent(account.email)}`">
-                    <AButton type="primary">查看邮件</AButton>
-                  </NuxtLink>
-                  <AButton
-                    danger
-                    :loading="deletingId === account.id"
-                    @click="removeAccount(account)"
-                  >
-                    <template #icon>
-                      <DeleteOutlined />
-                    </template>
-                    删除
-                  </AButton>
-                </ASpace>
-              </ACard>
             </div>
 
-            <ATable
-              v-else
-              class="account-table"
-              :columns="accountColumns"
-              :data-source="accounts"
-              :loading="accountTableLoading"
-              :pagination="{ pageSize: 8, showSizeChanger: false }"
-              :row-selection="accountRowSelection"
-              :scroll="{ x: accountTableScrollX }"
-              table-layout="fixed"
-              row-key="id"
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'email'">
-                  <div class="table-cell__stack">
-                    <div class="account-identity">
-                      <ATypographyText strong>{{ record.email }}</ATypographyText>
-                      <AButton
-                        aria-label="复制账号信息"
-                        class="account-copy-button"
-                        type="text"
-                        size="small"
-                        title="复制账号信息"
-                        @click="copyAccountImportText(record, $event)"
-                      >
-                        <template #icon>
-                          <CopyOutlined />
-                        </template>
-                      </AButton>
-                    </div>
-                    <ATypographyText type="secondary" class="table-cell__subtext">
-                      创建于 {{ formatDate(record.createdAt) }}
-                    </ATypographyText>
-                  </div>
-                </template>
-
-                <template v-else-if="column.key === 'clientId'">
-                  <ATypographyText
-                    class="client-id-text"
-                    :content="record.clientId"
-                    :ellipsis="{ tooltip: record.clientId }"
-                  />
-                </template>
-
-                <template v-else-if="column.key === 'tokenState'">
-                  <div class="table-cell__stack">
-                    <ATag :color="getTokenState(record).color">
-                      {{ getTokenState(record).label }}
-                    </ATag>
-                    <span class="table-cell__subtext">{{ getTokenState(record).detail }}</span>
-                  </div>
-                </template>
-
-                <template v-else-if="column.key === 'updatedAt'">
-                  <div class="table-cell__stack">
-                    <ATypographyText>{{ formatDate(record.updatedAt) }}</ATypographyText>
-                    <span class="table-cell__subtext">
-                      {{ record.hasAccessToken ? '已缓存 Access Token' : '未缓存 Access Token' }}
-                    </span>
-                  </div>
-                </template>
-
-                <template v-else-if="column.key === 'actions'">
-                  <ASpace class="account-table__actions" :size="4">
-                    <NuxtLink :to="`/account/${encodeURIComponent(record.email)}`">
-                      <AButton type="link" size="small">查看</AButton>
-                    </NuxtLink>
-                    <AButton
-                      aria-label="删除账号"
-                      danger
-                      type="text"
-                      size="small"
-                      title="删除账号"
-                      :loading="deletingId === record.id"
-                      @click="removeAccount(record)"
-                    >
-                      <template #icon>
-                        <DeleteOutlined />
-                      </template>
-                    </AButton>
-                  </ASpace>
-                </template>
-              </template>
-            </ATable>
-
-            <template #fallback>
-              <div class="account-panel-skeleton">
-                <ASkeleton active :paragraph="{ rows: 6 }" />
+            <div class="mailbox-overview__grid">
+              <div
+                v-for="item in mailboxOverviewItems"
+                :key="item.key"
+                :class="[
+                  'mailbox-overview__metric',
+                  {
+                    'mailbox-overview__metric--highlight': item.key === 'token',
+                  },
+                ]"
+              >
+                <span class="mailbox-overview__metric-label">{{ item.label }}</span>
+                <div class="mailbox-overview__metric-value">
+                  <ATag v-if="item.key === 'token'" :color="item.tone">
+                    {{ item.value }}
+                  </ATag>
+                  <span v-else>{{ item.value }}</span>
+                </div>
+                <span class="mailbox-overview__metric-desc">{{ item.desc }}</span>
               </div>
+            </div>
+          </template>
+
+          <AEmpty v-else>
+            <template #description>
+              <span />
             </template>
-          </ClientOnly>
+          </AEmpty>
+        </ACard>
+
+        <ACard class="list-card mailbox-mail-card" :bordered="false">
+          <template #title>
+            具体邮件列表
+          </template>
+
+          <template #extra>
+            <div class="mailbox-mail-card__toolbar">
+              <span class="table-cell__subtext">拉取范围</span>
+              <div class="page-toolbar__field mailbox-mail-card__field">
+                <select
+                  v-model.number="mailLimit"
+                  class="page-toolbar__select"
+                  :disabled="!selectedAccount"
+                >
+                  <option
+                    v-for="option in mailLimitOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </template>
+
+          <AEmpty v-if="!selectedAccount">
+            <template #description>
+              <span />
+            </template>
+          </AEmpty>
+
+          <template v-else>
+            <AAlert
+              v-if="mailErrorMessage"
+              class="mailbox-mail-card__alert"
+              type="error"
+              show-icon
+              :message="mailErrorMessage"
+            />
+
+            <ASkeleton
+              v-else-if="mailboxLoading && mails.length === 0"
+              active
+              :paragraph="{ rows: 8 }"
+            />
+
+            <AEmpty
+              v-else-if="mails.length === 0"
+              description="当前没有读取到邮件"
+            />
+
+            <AList v-else :data-source="mails" item-layout="vertical">
+              <template #renderItem="{ item }">
+                <AListItem class="mail-list-item">
+                  <template #actions>
+                    <ATag :color="item.isRead ? 'default' : 'warning'">
+                      {{ item.isRead ? '已读' : '未读' }}
+                    </ATag>
+                    <ATag :color="item.hasAttachments ? 'processing' : 'default'">
+                      {{ item.hasAttachments ? '有附件' : '无附件' }}
+                    </ATag>
+                  </template>
+
+                  <template #extra>
+                    <NuxtLink :to="`/account/${encodeURIComponent(selectedAccount.email)}/message/${encodeURIComponent(item.id)}`">
+                      <AButton type="link">查看详情</AButton>
+                    </NuxtLink>
+                  </template>
+
+                  <AListItemMeta>
+                    <template #title>
+                      <div class="mail-item__title">
+                        <span class="mail-item__subject">{{ item.subject || '（无主题）' }}</span>
+                        <ATypographyText type="secondary">
+                          {{ formatDate(item.receivedAt) }}
+                        </ATypographyText>
+                      </div>
+                    </template>
+
+                    <template #description>
+                      <div class="mail-item__meta">
+                        <span>{{ item.fromName || '未知发件人' }}</span>
+                        <span>{{ item.fromAddress }}</span>
+                      </div>
+                    </template>
+                  </AListItemMeta>
+                </AListItem>
+              </template>
+            </AList>
+          </template>
         </ACard>
       </div>
     </div>
 
     <Modal
-      :open="importResultOpen"
-      title="导入结果"
-      width="720px"
-      :mask-closable="true"
-      @cancel="closeImportResult"
+      :open="importModalOpen"
+      title="批量导入账号"
+      width="760px"
+      :mask-closable="!importLoading"
+      :confirm-loading="importLoading"
+      :ok-button-props="{ disabled: !canSubmitImport }"
+      ok-text="开始导入"
+      cancel-text="关闭"
+      @ok="submitImport"
+      @cancel="closeImportModal"
     >
+      <AAlert type="info">
+        <template #description>
+          <div class="import-card__description">
+            <p>
+              每行 1 条，格式固定：
+              <code>email----password----client_id----refresh_token</code>
+            </p>
+            <p>支持直接粘贴文本，或选择本地 TXT 文件后自动导入。</p>
+          </div>
+        </template>
+      </AAlert>
+
+      <AForm layout="vertical" style="margin-top: 16px">
+        <AFormItem label="导入内容">
+          <ATextarea
+            v-model:value="importText"
+            :rows="12"
+            placeholder="user@example.com----password----client-id----refresh-token"
+            @keydown="handleImportKeydown"
+          />
+        </AFormItem>
+      </AForm>
+
+      <input
+        ref="importFileInput"
+        class="import-file-input"
+        type="file"
+        accept=".txt,text/plain"
+        @change="handleImportFileChange"
+      >
+
+      <div class="import-actions">
+        <AButton
+          class="import-action-button"
+          :disabled="importLoading"
+          @click="openImportFileSelector"
+        >
+          <template #icon>
+            <UploadOutlined />
+          </template>
+          本地导入
+        </AButton>
+
+        <AButton
+          class="import-action-button"
+          :disabled="importLoading || !importText"
+          @click="importText = ''"
+        >
+          清空内容
+        </AButton>
+      </div>
+
+      <AAlert
+        v-if="importError"
+        style="margin-top: 20px"
+        type="error"
+        show-icon
+        :message="importError"
+      />
+
       <div v-if="importResult" class="import-result-modal__content">
         <AResult
           status="success"
@@ -827,7 +967,7 @@ function formatFileTimestamp(value: Date) {
           class="import-result__desc"
         />
 
-        <ADescriptions size="small" :column="isCompactLayout ? 1 : 2" bordered>
+        <ADescriptions size="small" :column="2" bordered>
           <ADescriptionsItem label="解析行数">
             {{ importResult.totalLines }}
           </ADescriptionsItem>
@@ -862,12 +1002,6 @@ function formatFileTimestamp(value: Date) {
           </template>
         </AList>
       </div>
-
-      <template #footer>
-        <AButton type="primary" @click="closeImportResult">
-          知道了
-        </AButton>
-      </template>
     </Modal>
   </section>
 </template>
