@@ -270,23 +270,32 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   text-align: center;
   line-height: 1;
 }
 
-.toolbar-button__content .anticon {
+.toolbar-button__icon {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 20px;
+  min-width: 20px;
 }
 
-.toolbar-button__content .anticon svg {
+.toolbar-button__icon .anticon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+}
+
+.toolbar-button__icon .anticon svg {
   display: block;
 }
 
-.toolbar-button__content > span:last-child {
+.toolbar-button__label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -319,11 +328,13 @@ code {
 
 .mailbox-list__item {
   display: grid;
-  gap: 14px;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 14px;
   padding: 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   cursor: pointer;
   transition:
     border-color 0.2s ease,
@@ -334,17 +345,17 @@ code {
 
 .mailbox-list__item:hover,
 .mailbox-list__item:focus-visible {
-  border-color: rgba(22, 119, 255, 0.38);
-  box-shadow: 0 12px 30px rgba(22, 119, 255, 0.12);
+  border-color: rgba(22, 119, 255, 0.24);
+  box-shadow: 0 10px 24px rgba(22, 119, 255, 0.08);
   transform: translateY(-1px);
   outline: none;
 }
 
 .mailbox-list__item--active {
-  border-color: rgba(22, 119, 255, 0.44);
-  box-shadow: 0 14px 36px rgba(22, 119, 255, 0.14);
+  border-color: rgba(22, 119, 255, 0.28);
+  box-shadow: 0 12px 26px rgba(22, 119, 255, 0.1);
   background:
-    linear-gradient(180deg, rgba(238, 245, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 100%);
+    linear-gradient(180deg, rgba(244, 248, 255, 0.98) 0%, rgba(255, 255, 255, 0.98) 100%);
 }
 
 .mailbox-list__item-head,
@@ -373,12 +384,20 @@ code {
   margin-top: 2px;
 }
 
+.mailbox-list__item-content,
 .mailbox-list__item-identity,
-.mailbox-list__item-body,
 .mailbox-overview__header-main {
   display: grid;
-  gap: 4px;
   min-width: 0;
+}
+
+.mailbox-list__item-content,
+.mailbox-overview__header-main {
+  gap: 12px;
+}
+
+.mailbox-list__item-identity {
+  gap: 4px;
 }
 
 .mailbox-list__item-identity strong {
@@ -386,14 +405,42 @@ code {
   overflow-wrap: anywhere;
 }
 
-.mailbox-list__item-body {
-  gap: 6px;
+.mailbox-list__item-status {
+  flex: none;
+  white-space: nowrap;
+}
+
+.mailbox-list__item-meta {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(248, 250, 253, 0.9);
+  border: none;
+}
+
+.mailbox-list__item-meta-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.mailbox-list__item-meta-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mailbox-list__item-meta-row .table-cell__subtext {
+  color: #475467;
 }
 
 .mailbox-list__item-actions {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
+  align-self: end;
 }
 
 .import-card__description {
@@ -1035,14 +1082,22 @@ code {
     min-height: 320px;
   }
 
-  .mailbox-list__item-head,
-  .mailbox-list__item-leading,
+  .mailbox-list__item {
+    grid-template-columns: 1fr;
+  }
+
   .mailbox-mail-card__toolbar {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .mailbox-list__item-meta-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
   .mailbox-list__item-actions {
+    align-self: start;
     justify-content: flex-start;
   }
 

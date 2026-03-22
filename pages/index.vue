@@ -611,22 +611,28 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
         <div class="workspace-sidebar__toolbar">
           <AButton type="primary" @click="openImportModal">
             <span class="toolbar-button__content">
-              <UploadOutlined />
-              <span>导入账号</span>
+              <span class="toolbar-button__icon">
+                <UploadOutlined />
+              </span>
+              <span class="toolbar-button__label">导入账号</span>
             </span>
           </AButton>
 
           <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
             <span class="toolbar-button__content">
-              <DownloadOutlined />
-              <span>导出选中（{{ selectedAccountCount }}）</span>
+              <span class="toolbar-button__icon">
+                <DownloadOutlined />
+              </span>
+              <span class="toolbar-button__label">导出选中（{{ selectedAccountCount }}）</span>
             </span>
           </AButton>
 
           <AButton :loading="pending" @click="reloadAccounts">
             <span class="toolbar-button__content">
-              <ReloadOutlined />
-              <span>刷新列表</span>
+              <span class="toolbar-button__icon">
+                <ReloadOutlined />
+              </span>
+              <span class="toolbar-button__label">刷新列表</span>
             </span>
           </AButton>
         </div>
@@ -684,28 +690,36 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
               @keydown.enter.prevent="selectAccount(account.id)"
               @keydown.space.prevent="selectAccount(account.id)"
             >
-              <div class="mailbox-list__item-head">
-                <div class="mailbox-list__item-leading">
-                  <ACheckbox
-                    :checked="isAccountSelected(account.id)"
-                    @click.stop
-                    @change="handleMailboxSelectionChange(account.id, $event)"
-                  />
+              <div class="mailbox-list__item-content">
+                <div class="mailbox-list__item-head">
+                  <div class="mailbox-list__item-leading">
+                    <ACheckbox
+                      :checked="isAccountSelected(account.id)"
+                      @click.stop
+                      @change="handleMailboxSelectionChange(account.id, $event)"
+                    />
 
-                  <div class="mailbox-list__item-identity">
-                    <strong>{{ account.email }}</strong>
-                    <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
+                    <div class="mailbox-list__item-identity">
+                      <strong>{{ account.email }}</strong>
+                      <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
+                    </div>
                   </div>
+
+                  <ATag class="mailbox-list__item-status" :color="getTokenState(account).color">
+                    {{ getTokenState(account).label }}
+                  </ATag>
                 </div>
 
-                <ATag :color="getTokenState(account).color">
-                  {{ getTokenState(account).label }}
-                </ATag>
-              </div>
-
-              <div class="mailbox-list__item-body">
-                <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
-                <span class="table-cell__subtext">最近更新：{{ formatDate(account.updatedAt) }}</span>
+                <div class="mailbox-list__item-meta">
+                  <div class="mailbox-list__item-meta-row">
+                    <span class="mailbox-list__item-meta-label">访问状态</span>
+                    <span class="table-cell__subtext">{{ getTokenState(account).detail }}</span>
+                  </div>
+                  <div class="mailbox-list__item-meta-row">
+                    <span class="mailbox-list__item-meta-label">最近更新</span>
+                    <span class="table-cell__subtext">{{ formatDate(account.updatedAt) }}</span>
+                  </div>
+                </div>
               </div>
 
               <div class="mailbox-list__item-actions">
