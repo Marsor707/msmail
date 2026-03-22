@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import {
+  CheckCircleFilled,
+  CloseCircleFilled,
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
   ReloadOutlined,
   SearchOutlined,
+  SyncOutlined,
   UploadOutlined,
 } from '@ant-design/icons-vue'
 import message from 'ant-design-vue/es/message'
@@ -559,6 +562,8 @@ function getTokenState(account: AccountListItem) {
       label: '可直接读取',
       color: 'success',
       detail: `有效期至 ${formatDate(account.tokenExpires)}`,
+      icon: CheckCircleFilled,
+      iconClass: 'mailbox-list__item-status--success',
     }
   }
 
@@ -567,6 +572,8 @@ function getTokenState(account: AccountListItem) {
       label: '待刷新',
       color: 'warning',
       detail: account.tokenExpires ? 'Access Token 已过期' : '尚未生成 Access Token',
+      icon: SyncOutlined,
+      iconClass: 'mailbox-list__item-status--warning',
     }
   }
 
@@ -574,6 +581,8 @@ function getTokenState(account: AccountListItem) {
     label: '配置缺失',
     color: 'error',
     detail: '缺少 Refresh Token，请重新导入',
+    icon: CloseCircleFilled,
+    iconClass: 'mailbox-list__item-status--error',
   }
 }
 
@@ -731,6 +740,13 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
               @keydown.enter.prevent="selectAccount(account.id)"
               @keydown.space.prevent="selectAccount(account.id)"
             >
+              <span
+                :class="['mailbox-list__item-status', getTokenState(account).iconClass]"
+                :aria-label="getTokenState(account).label"
+              >
+                <component :is="getTokenState(account).icon" aria-hidden="true" />
+              </span>
+
               <div class="mailbox-list__item-content">
                 <div class="mailbox-list__item-head">
                   <div class="mailbox-list__item-leading">
@@ -745,10 +761,6 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
                       <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
                     </div>
                   </div>
-
-                  <ATag class="mailbox-list__item-status" :color="getTokenState(account).color">
-                    {{ getTokenState(account).label }}
-                  </ATag>
                 </div>
 
                 <div class="mailbox-list__item-meta">

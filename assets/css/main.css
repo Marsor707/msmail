@@ -371,6 +371,7 @@ code {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding-right: 34px;
 }
 
 .mailbox-list__item-leading {
@@ -406,8 +407,28 @@ code {
 }
 
 .mailbox-list__item-status {
-  flex: none;
-  white-space: nowrap;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mailbox-list__item-status--success {
+  color: #52c41a;
+}
+
+.mailbox-list__item-status--warning {
+  color: #faad14;
+}
+
+.mailbox-list__item-status--error {
+  color: #ff4d4f;
 }
 
 .mailbox-list__item-meta {
