@@ -263,42 +263,18 @@ code {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   white-space: nowrap;
 }
 
-.toolbar-button__content {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  text-align: center;
+.workspace-sidebar__toolbar .ant-btn .anticon {
+  font-size: 17px;
   line-height: 1;
 }
 
-.toolbar-button__icon {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  min-width: 20px;
-}
-
-.toolbar-button__icon .anticon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-}
-
-.toolbar-button__icon .anticon svg {
-  display: block;
-}
-
-.toolbar-button__label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.workspace-sidebar__toolbar .ant-btn > .anticon + span,
+.workspace-sidebar__toolbar .ant-btn > span + .anticon {
+  margin-inline-start: 0;
 }
 
 .workspace-sidebar__search .ant-input-affix-wrapper,

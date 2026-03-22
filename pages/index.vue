@@ -660,30 +660,24 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
 
         <div class="workspace-sidebar__toolbar">
           <AButton type="primary" @click="openImportModal">
-            <span class="toolbar-button__content">
-              <span class="toolbar-button__icon">
-                <UploadOutlined />
-              </span>
-              <span class="toolbar-button__label">导入账号</span>
-            </span>
+            <template #icon>
+              <UploadOutlined />
+            </template>
+            导入账号
           </AButton>
 
           <AButton :disabled="!canExportAccounts" :loading="exportLoading" @click="exportSelectedAccounts">
-            <span class="toolbar-button__content">
-              <span class="toolbar-button__icon">
-                <DownloadOutlined />
-              </span>
-              <span class="toolbar-button__label">导出选中（{{ selectedAccountCount }}）</span>
-            </span>
+            <template #icon>
+              <DownloadOutlined />
+            </template>
+            导出选中（{{ selectedAccountCount }}）
           </AButton>
 
           <AButton :loading="pending" @click="reloadAccounts">
-            <span class="toolbar-button__content">
-              <span class="toolbar-button__icon">
-                <ReloadOutlined />
-              </span>
-              <span class="toolbar-button__label">刷新列表</span>
-            </span>
+            <template #icon>
+              <ReloadOutlined />
+            </template>
+            刷新列表
           </AButton>
         </div>
 
