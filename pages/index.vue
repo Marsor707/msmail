@@ -25,6 +25,7 @@ const importText = ref('')
 const importLoading = ref(false)
 const importError = ref('')
 const importModalOpen = ref(false)
+const importResultModalOpen = ref(false)
 const importResult = ref<ImportAccountsResult | null>(null)
 const deletingId = ref<number | null>(null)
 const exportLoading = ref(false)
@@ -277,6 +278,7 @@ async function loadMailboxMessages(options: { clearBeforeLoad?: boolean } = {}) 
 function openImportModal() {
   importError.value = ''
   importResult.value = null
+  importResultModalOpen.value = false
   importModalOpen.value = true
 }
 
@@ -286,6 +288,10 @@ function closeImportModal() {
   }
 
   importModalOpen.value = false
+}
+
+function closeImportResultModal() {
+  importResultModalOpen.value = false
 }
 
 function selectAccount(accountId: number) {
@@ -348,6 +354,7 @@ async function importAccounts(text: string) {
   importLoading.value = true
   importError.value = ''
   importResult.value = null
+  importResultModalOpen.value = false
 
   const response = await useApiRequest<ImportAccountsResult>('/api/accounts/import', {
     method: 'POST',
@@ -365,9 +372,11 @@ async function importAccounts(text: string) {
 
   importResult.value = response.data
   importText.value = ''
-  await refresh()
-  message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
   importLoading.value = false
+  importModalOpen.value = false
+  importResultModalOpen.value = true
+  message.success(`导入完成，成功写入 ${response.data.successCount} 条账号`)
+  await refresh()
 }
 
 async function submitImport() {
@@ -1039,6 +1048,19 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
         show-icon
         :message="importError"
       />
+    </Modal>
+
+    <Modal
+      :open="importResultModalOpen"
+      title="导入结果"
+      width="760px"
+      @cancel="closeImportResultModal"
+    >
+      <template #footer>
+        <AButton type="primary" @click="closeImportResultModal">
+          我知道了
+        </AButton>
+      </template>
 
       <div v-if="importResult" class="import-result-modal__content">
         <AResult

@@ -490,7 +490,10 @@ code {
 .import-result-modal__content {
   display: grid;
   gap: 0;
-  margin-top: 24px;
+  max-height: min(60vh, 560px);
+  margin-top: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .table-cell__stack {
