@@ -196,11 +196,16 @@ code {
 .workspace-sidebar {
   position: sticky;
   top: 20px;
+  height: calc(100vh - 40px);
+  overflow: hidden;
 }
 
 .workspace-sidebar .ant-card-body {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+  height: 100%;
+  min-height: 0;
 }
 
 .workspace-sidebar__hero {
@@ -293,10 +298,12 @@ code {
 }
 
 .workspace-sidebar__list {
-  min-height: 520px;
-  max-height: calc(100vh - 300px);
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 4px 4px 8px;
   overflow: auto;
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
@@ -947,6 +954,8 @@ code {
 
   .workspace-sidebar {
     position: static;
+    height: auto;
+    overflow: visible;
   }
 
   .workspace-sidebar__list {
