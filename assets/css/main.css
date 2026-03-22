@@ -22,6 +22,12 @@ body,
 
 html {
   overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -29,11 +35,15 @@ body {
   color: var(--text-main);
   overflow-x: hidden;
   overflow-y: auto;
-  /* body 才是实际滚动容器，稳定预留滚动条占位可避免左右抖动。 */
-  scrollbar-gutter: stable;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   background:
     radial-gradient(circle at top left, rgba(22, 119, 255, 0.12), transparent 22%),
     linear-gradient(180deg, #f7f9fc 0%, var(--app-bg) 100%);
+}
+
+body::-webkit-scrollbar {
+  display: none;
 }
 
 a {
@@ -285,7 +295,14 @@ code {
 .workspace-sidebar__list {
   min-height: 520px;
   max-height: calc(100vh - 300px);
+  padding: 4px 4px 8px;
   overflow: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.workspace-sidebar__list::-webkit-scrollbar {
+  display: none;
 }
 
 .mailbox-list {
@@ -478,6 +495,30 @@ code {
 
 .page-breadcrumb {
   margin-bottom: 2px;
+}
+
+.message-page__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 20px 24px;
+}
+
+.message-header__meta {
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+  min-width: 0;
+}
+
+.message-header__breadcrumb {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.message-page__header .page-card__header-main {
+  flex: initial;
+  min-width: 0;
 }
 
 .page-toolbar {
@@ -797,6 +838,7 @@ code {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .message-body-card .ant-card-body {
@@ -810,8 +852,14 @@ code {
   background: #fbfcff;
   line-height: 1.8;
   overflow: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
   color: var(--text-main);
   overflow-wrap: anywhere;
+}
+
+.mail-body::-webkit-scrollbar {
+  display: none;
 }
 
 .mail-body img,
@@ -928,10 +976,23 @@ code {
     margin-inline-start: 0;
   }
 
+  .message-page__header {
+    grid-template-columns: 1fr;
+  }
+
+  .message-header__meta {
+    width: 100%;
+    justify-items: stretch;
+  }
+
   .message-header__actions,
   .page-toolbar,
   .mailbox-overview__header {
     align-items: stretch;
+  }
+
+  .message-header__actions {
+    justify-content: flex-start;
   }
 
   .page-toolbar {

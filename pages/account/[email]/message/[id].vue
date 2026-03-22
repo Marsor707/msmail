@@ -46,6 +46,54 @@ const sanitizedBody = computed(() => {
   return DOMPurify.sanitize(mail.value.body)
 })
 
+function scrollViewportToTop() {
+  if (!import.meta.client) {
+    return
+  }
+
+  const resetScrollTop = () => {
+    const scrollTargets = [
+      document.body,
+      document.documentElement,
+      document.scrollingElement,
+    ].filter((target): target is HTMLElement => Boolean(target))
+
+    for (const target of scrollTargets) {
+      target.scrollTop = 0
+
+      if (typeof target.scrollTo === 'function') {
+        target.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: 'auto',
+        })
+      }
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'auto',
+    })
+  }
+
+  resetScrollTop()
+  window.requestAnimationFrame(resetScrollTop)
+}
+
+async function resetDetailPageScroll() {
+  await nextTick()
+  scrollViewportToTop()
+}
+
+onMounted(() => {
+  void resetDetailPageScroll()
+})
+
+watch([email, messageId], () => {
+  void resetDetailPageScroll()
+})
+
 function formatDate(value: string) {
   if (!value) {
     return '-'
@@ -78,16 +126,8 @@ function escapeHtml(value: string) {
 
     <template v-else-if="mail">
       <ACard class="page-card" :bordered="false">
-        <div class="page-card__header">
+        <div class="page-card__header message-page__header">
           <div class="page-card__header-main">
-            <ABreadcrumb class="page-breadcrumb">
-              <ABreadcrumbItem>
-                <NuxtLink to="/">首页工作台</NuxtLink>
-              </ABreadcrumbItem>
-              <ABreadcrumbItem>{{ email }}</ABreadcrumbItem>
-              <ABreadcrumbItem>邮件详情</ABreadcrumbItem>
-            </ABreadcrumb>
-
             <ATypographyTitle :level="3" style="margin: 0">
               {{ mail.subject || '（无主题）' }}
             </ATypographyTitle>
@@ -96,21 +136,31 @@ function escapeHtml(value: string) {
             </ATypographyParagraph>
           </div>
 
-          <div class="message-header__actions">
-            <ATag :color="mail.isRead ? 'default' : 'warning'">
-              {{ mail.isRead ? '已读' : '未读' }}
-            </ATag>
-            <ATag :color="mail.hasAttachments ? 'processing' : 'default'">
-              {{ mail.hasAttachments ? '有附件' : '无附件' }}
-            </ATag>
-            <NuxtLink to="/">
-              <AButton>
-                <template #icon>
-                  <ArrowLeftOutlined />
-                </template>
-                返回首页
-              </AButton>
-            </NuxtLink>
+          <div class="message-header__meta">
+            <ABreadcrumb class="page-breadcrumb message-header__breadcrumb">
+              <ABreadcrumbItem>
+                <NuxtLink to="/">首页工作台</NuxtLink>
+              </ABreadcrumbItem>
+              <ABreadcrumbItem>{{ email }}</ABreadcrumbItem>
+              <ABreadcrumbItem>邮件详情</ABreadcrumbItem>
+            </ABreadcrumb>
+
+            <div class="message-header__actions">
+              <ATag :color="mail.isRead ? 'default' : 'warning'">
+                {{ mail.isRead ? '已读' : '未读' }}
+              </ATag>
+              <ATag :color="mail.hasAttachments ? 'processing' : 'default'">
+                {{ mail.hasAttachments ? '有附件' : '无附件' }}
+              </ATag>
+              <NuxtLink to="/">
+                <AButton>
+                  <template #icon>
+                    <ArrowLeftOutlined />
+                  </template>
+                  返回首页
+                </AButton>
+              </NuxtLink>
+            </div>
           </div>
         </div>
 
