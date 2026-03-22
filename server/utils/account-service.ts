@@ -109,7 +109,7 @@ export async function listAccounts(options: ListAccountsOptions = {}) {
         }
       : undefined,
     orderBy: {
-      updatedAt: 'desc',
+      createdAt: 'asc',
     },
   })
 
