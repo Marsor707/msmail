@@ -966,13 +966,41 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
       title="批量导入账号"
       width="760px"
       :mask-closable="!importLoading"
-      :confirm-loading="importLoading"
-      :ok-button-props="{ disabled: !canSubmitImport }"
-      ok-text="开始导入"
-      cancel-text="关闭"
-      @ok="submitImport"
       @cancel="closeImportModal"
     >
+      <template #footer>
+        <div class="import-actions">
+          <AButton
+            class="import-action-button"
+            :disabled="importLoading"
+            @click="openImportFileSelector"
+          >
+            <template #icon>
+              <UploadOutlined />
+            </template>
+            本地导入
+          </AButton>
+
+          <AButton
+            class="import-action-button"
+            :disabled="importLoading || !importText"
+            @click="importText = ''"
+          >
+            清空内容
+          </AButton>
+
+          <AButton
+            class="import-action-button"
+            type="primary"
+            :loading="importLoading"
+            :disabled="!canSubmitImport"
+            @click="submitImport"
+          >
+            开始导入
+          </AButton>
+        </div>
+      </template>
+
       <AAlert type="info">
         <template #description>
           <div class="import-card__description">
@@ -1003,27 +1031,6 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
         accept=".txt,text/plain"
         @change="handleImportFileChange"
       >
-
-      <div class="import-actions">
-        <AButton
-          class="import-action-button"
-          :disabled="importLoading"
-          @click="openImportFileSelector"
-        >
-          <template #icon>
-            <UploadOutlined />
-          </template>
-          本地导入
-        </AButton>
-
-        <AButton
-          class="import-action-button"
-          :disabled="importLoading || !importText"
-          @click="importText = ''"
-        >
-          清空内容
-        </AButton>
-      </div>
 
       <AAlert
         v-if="importError"

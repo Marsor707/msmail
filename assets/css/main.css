@@ -457,9 +457,9 @@ code {
 
 .import-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 2px;
+  width: 100%;
 }
 
 .import-action-button {
@@ -1060,8 +1060,7 @@ code {
   }
 
   .workspace-sidebar__stats,
-  .mailbox-overview__grid,
-  .import-actions {
+  .mailbox-overview__grid {
     grid-template-columns: 1fr;
   }
 
