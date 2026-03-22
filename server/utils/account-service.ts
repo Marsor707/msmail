@@ -1,4 +1,8 @@
-import type { ImportAccountsResult, ImportLineError } from '~/shared/types'
+import type {
+  AccountListItem,
+  ImportAccountsResult,
+  ImportLineError,
+} from '~/shared/types'
 import {
   ACCOUNT_IMPORT_SEPARATOR,
   formatAccountImportLine,
@@ -8,6 +12,18 @@ import { prisma } from '~/server/utils/prisma'
 
 interface ListAccountsOptions {
   keyword?: string
+}
+
+interface AccountRecord {
+  id: number
+  email: string
+  password: string
+  clientId: string
+  refreshToken: string
+  accessToken: string | null
+  tokenExpires: Date | null
+  createdAt: Date
+  updatedAt: Date
 }
 
 export async function importAccountsFromText(rawText: string) {
@@ -113,18 +129,19 @@ export async function listAccounts(options: ListAccountsOptions = {}) {
     },
   })
 
-  return accounts.map((account: (typeof accounts)[number]) => ({
-    id: account.id,
-    email: account.email,
-    password: account.password,
-    clientId: account.clientId,
-    refreshToken: account.refreshToken,
-    hasRefreshToken: Boolean(account.refreshToken),
-    hasAccessToken: Boolean(account.accessToken),
-    tokenExpires: account.tokenExpires?.toISOString() ?? null,
-    createdAt: account.createdAt.toISOString(),
-    updatedAt: account.updatedAt.toISOString(),
-  }))
+  return accounts.map(toAccountListItem)
+}
+
+export async function getAccountByEmail(email: string) {
+  const account = await prisma.account.findUnique({
+    where: { email },
+  })
+
+  if (!account) {
+    throw appError(404, 'ACCOUNT_NOT_FOUND', '邮箱账号不存在')
+  }
+
+  return toAccountListItem(account)
 }
 
 export async function exportAccountsByIds(ids: number[]) {
@@ -192,4 +209,19 @@ export async function deleteAccountById(id: number) {
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function toAccountListItem(account: AccountRecord): AccountListItem {
+  return {
+    id: account.id,
+    email: account.email,
+    password: account.password,
+    clientId: account.clientId,
+    refreshToken: account.refreshToken,
+    hasRefreshToken: Boolean(account.refreshToken),
+    hasAccessToken: Boolean(account.accessToken),
+    tokenExpires: account.tokenExpires?.toISOString() ?? null,
+    createdAt: account.createdAt.toISOString(),
+    updatedAt: account.updatedAt.toISOString(),
+  }
 }

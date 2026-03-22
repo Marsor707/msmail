@@ -218,6 +218,22 @@ async function reloadMailboxMessages() {
   })
 }
 
+async function refreshAccountByEmail(email: string) {
+  if (!email) {
+    return
+  }
+
+  const response = await useApiRequest<AccountListItem>(
+    `/api/accounts/detail?email=${encodeURIComponent(email)}`,
+  )
+
+  if (!response.success || !response.data) {
+    return
+  }
+
+  replaceAccountInList(response.data)
+}
+
 async function loadMailboxMessages(options: { clearBeforeLoad?: boolean } = {}) {
   const email = selectedEmail.value
   const requestId = ++mailboxRequestId
@@ -249,6 +265,10 @@ async function loadMailboxMessages(options: { clearBeforeLoad?: boolean } = {}) 
         data: [],
       }
   mailboxLoading.value = false
+
+  if (response.success) {
+    await refreshAccountByEmail(email)
+  }
 }
 
 function openImportModal() {
@@ -267,6 +287,27 @@ function closeImportModal() {
 
 function selectAccount(accountId: number) {
   selectedAccountId.value = accountId
+}
+
+function replaceAccountInList(nextAccount: AccountListItem) {
+  const response = accountsData.value
+
+  if (!response?.success || !Array.isArray(response.data)) {
+    return
+  }
+
+  const nextAccounts = response.data.slice()
+  const currentIndex = nextAccounts.findIndex((account) => account.email === nextAccount.email)
+
+  if (currentIndex < 0) {
+    return
+  }
+
+  nextAccounts[currentIndex] = nextAccount
+  accountsData.value = {
+    ...response,
+    data: nextAccounts,
+  }
 }
 
 function setSelectedAccountIds(ids: Array<number | string>) {
