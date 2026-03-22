@@ -844,44 +844,57 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
               description="当前没有读取到邮件"
             />
 
-            <AList v-else :data-source="mails" item-layout="vertical">
-              <template #renderItem="{ item }">
-                <AListItem class="mail-list-item">
-                  <template #actions>
-                    <ATag :color="item.isRead ? 'default' : 'warning'">
+            <div v-else class="mail-list">
+              <article
+                v-for="item in mails"
+                :key="item.id"
+                class="mail-list-item"
+              >
+                <div class="mail-list-item__head">
+                  <div class="mail-list-item__content">
+                    <div class="mail-item__title">
+                      <span class="mail-item__subject">{{ item.subject || '（无主题）' }}</span>
+                    </div>
+
+                    <div class="mail-item__meta">
+                      <span class="mail-item__sender">{{ item.fromName || '未知发件人' }}</span>
+                      <span class="mail-item__address">{{ item.fromAddress }}</span>
+                    </div>
+                  </div>
+
+                  <div class="mail-list-item__aside">
+                    <ATypographyText type="secondary" class="mail-item__time">
+                      {{ formatDate(item.receivedAt) }}
+                    </ATypographyText>
+
+                    <NuxtLink
+                      class="mail-list-item__detail"
+                      :to="`/account/${encodeURIComponent(selectedAccount.email)}/message/${encodeURIComponent(item.id)}`"
+                    >
+                      <AButton type="link">查看详情</AButton>
+                    </NuxtLink>
+                  </div>
+                </div>
+
+                <div class="mail-list-item__footer">
+                  <div class="mail-list-item__tags">
+                    <ATag
+                      :class="[
+                        'mail-status-tag',
+                        {
+                          'mail-status-tag--unread': !item.isRead,
+                        },
+                      ]"
+                    >
                       {{ item.isRead ? '已读' : '未读' }}
                     </ATag>
                     <ATag :color="item.hasAttachments ? 'processing' : 'default'">
                       {{ item.hasAttachments ? '有附件' : '无附件' }}
                     </ATag>
-                  </template>
-
-                  <template #extra>
-                    <NuxtLink :to="`/account/${encodeURIComponent(selectedAccount.email)}/message/${encodeURIComponent(item.id)}`">
-                      <AButton type="link">查看详情</AButton>
-                    </NuxtLink>
-                  </template>
-
-                  <AListItemMeta>
-                    <template #title>
-                      <div class="mail-item__title">
-                        <span class="mail-item__subject">{{ item.subject || '（无主题）' }}</span>
-                        <ATypographyText type="secondary">
-                          {{ formatDate(item.receivedAt) }}
-                        </ATypographyText>
-                      </div>
-                    </template>
-
-                    <template #description>
-                      <div class="mail-item__meta">
-                        <span>{{ item.fromName || '未知发件人' }}</span>
-                        <span>{{ item.fromAddress }}</span>
-                      </div>
-                    </template>
-                  </AListItemMeta>
-                </AListItem>
-              </template>
-            </AList>
+                  </div>
+                </div>
+              </article>
+            </div>
           </template>
         </ACard>
       </div>
