@@ -6,6 +6,8 @@ import type { MailDetail } from '~/shared/types'
 const route = useRoute()
 const email = computed(() => decodeURIComponent(String(route.params.email || '')))
 const messageId = computed(() => decodeURIComponent(String(route.params.id || '')))
+const WEB_LINK_PROTOCOL_PATTERN = /^https?:\/\//i
+const NEW_TAB_REL_TOKENS = ['noopener', 'noreferrer']
 
 const { data } = await useAsyncData(
   () => `message-detail:${email.value}:${messageId.value}`,
@@ -43,7 +45,7 @@ const sanitizedBody = computed(() => {
     return DOMPurify.sanitize(`<pre>${escapeHtml(mail.value.body)}</pre>`)
   }
 
-  return DOMPurify.sanitize(mail.value.body)
+  return sanitizeHtmlMailBody(mail.value.body)
 })
 
 function scrollViewportToTop() {
@@ -112,6 +114,36 @@ function escapeHtml(value: string) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+}
+
+function sanitizeHtmlMailBody(value: string) {
+  // 先得到已清洗 DOM，再补充新窗口属性，避免直接改写原始 HTML 字符串。
+  const sanitizedBodyElement = DOMPurify.sanitize(value, {
+    RETURN_DOM: true,
+  }) as HTMLBodyElement
+
+  for (const anchor of sanitizedBodyElement.querySelectorAll('a[href]')) {
+    const href = anchor.getAttribute('href')?.trim() || ''
+
+    if (!WEB_LINK_PROTOCOL_PATTERN.test(href)) {
+      continue
+    }
+
+    anchor.setAttribute('target', '_blank')
+    anchor.setAttribute('rel', mergeAnchorRel(anchor.getAttribute('rel')))
+  }
+
+  return sanitizedBodyElement.innerHTML
+}
+
+function mergeAnchorRel(value: string | null) {
+  const relTokens = new Set((value || '').split(/\s+/).filter(Boolean))
+
+  for (const token of NEW_TAB_REL_TOKENS) {
+    relTokens.add(token)
+  }
+
+  return Array.from(relTokens).join(' ')
 }
 </script>
 
