@@ -6,6 +6,22 @@ import type { MailDetail } from '~/shared/types'
 const route = useRoute()
 const email = computed(() => decodeURIComponent(String(route.params.email || '')))
 const messageId = computed(() => decodeURIComponent(String(route.params.id || '')))
+const homeRoute = computed(() => {
+  const selectedEmail = normalizeRouteQueryValue(route.query.selectedEmail)
+
+  if (!selectedEmail) {
+    return {
+      path: '/',
+    }
+  }
+
+  return {
+    path: '/',
+    query: {
+      selectedEmail,
+    },
+  }
+})
 const WEB_LINK_PROTOCOL_PATTERN = /^https?:\/\//i
 const NEW_TAB_REL_TOKENS = ['noopener', 'noreferrer']
 
@@ -116,6 +132,11 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;')
 }
 
+function normalizeRouteQueryValue(value: unknown) {
+  const rawValue = Array.isArray(value) ? value[0] : value
+  return typeof rawValue === 'string' ? rawValue.trim() : ''
+}
+
 function sanitizeHtmlMailBody(value: string) {
   // 先得到已清洗 DOM，再补充新窗口属性，避免直接改写原始 HTML 字符串。
   const sanitizedBodyElement = DOMPurify.sanitize(value, {
@@ -171,7 +192,7 @@ function mergeAnchorRel(value: string | null) {
           <div class="message-header__meta">
             <ABreadcrumb class="page-breadcrumb message-header__breadcrumb">
               <ABreadcrumbItem>
-                <NuxtLink to="/">首页工作台</NuxtLink>
+                <NuxtLink :to="homeRoute">首页工作台</NuxtLink>
               </ABreadcrumbItem>
               <ABreadcrumbItem>{{ email }}</ABreadcrumbItem>
               <ABreadcrumbItem>邮件详情</ABreadcrumbItem>
@@ -184,7 +205,7 @@ function mergeAnchorRel(value: string | null) {
               <ATag :color="mail.hasAttachments ? 'processing' : 'default'">
                 {{ mail.hasAttachments ? '有附件' : '无附件' }}
               </ATag>
-              <NuxtLink to="/">
+              <NuxtLink :to="homeRoute">
                 <AButton>
                   <template #icon>
                     <ArrowLeftOutlined />

@@ -21,6 +21,8 @@ import type {
 } from '~/shared/types'
 
 const ACCOUNT_SEARCH_DEBOUNCE = 300
+const route = useRoute()
+const router = useRouter()
 const importText = ref('')
 const importLoading = ref(false)
 const importError = ref('')
@@ -47,6 +49,7 @@ const mailLimitOptions = [
 
 let accountSearchTimer: ReturnType<typeof setTimeout> | null = null
 let mailboxRequestId = 0
+let selectedEmailQueryConsumed = false
 
 const accountListRequestUrl = computed(() => {
   const params = new URLSearchParams()
@@ -87,6 +90,7 @@ const selectedAccount = computed(
   () => accounts.value.find((account) => account.id === selectedAccountId.value) ?? null,
 )
 const selectedEmail = computed(() => selectedAccount.value?.email ?? '')
+const routeSelectedEmail = computed(() => normalizeRouteQueryValue(route.query.selectedEmail))
 const mails = computed(() => mailboxResponse.value.data ?? [])
 const mailErrorMessage = computed(() =>
   mailboxResponse.value.success === false ? mailboxResponse.value.message : '',
@@ -157,8 +161,30 @@ watch(
     const availableIds = new Set(nextAccounts.map((account) => account.id))
     selectedAccountIds.value = selectedAccountIds.value.filter((id) => availableIds.has(id))
 
+    const preferredEmail = selectedEmailQueryConsumed ? '' : routeSelectedEmail.value
+
     if (!nextAccounts.length) {
       selectedAccountId.value = null
+
+      if (!pending.value && preferredEmail) {
+        consumeSelectedEmailQuery()
+      }
+
+      return
+    }
+
+    if (preferredEmail) {
+      const matchedAccount = nextAccounts.find((account) => account.email === preferredEmail)
+
+      if (matchedAccount) {
+        selectedAccountId.value = matchedAccount.id
+      }
+      else {
+        const firstAccount = nextAccounts[0]
+        selectedAccountId.value = firstAccount ? firstAccount.id : null
+      }
+
+      consumeSelectedEmailQuery()
       return
     }
 
@@ -298,6 +324,19 @@ function selectAccount(accountId: number) {
   selectedAccountId.value = accountId
 }
 
+function buildMailDetailRoute(messageId: string) {
+  const query = selectedEmail.value
+    ? {
+        selectedEmail: selectedEmail.value,
+      }
+    : undefined
+
+  return {
+    path: `/account/${encodeURIComponent(selectedEmail.value)}/message/${encodeURIComponent(messageId)}`,
+    query,
+  }
+}
+
 function replaceAccountInList(nextAccount: AccountListItem) {
   const response = accountsData.value
 
@@ -340,6 +379,35 @@ function setAccountSelected(accountId: number, checked: boolean) {
 
 function isAccountSelected(accountId: number) {
   return selectedAccountIdSet.value.has(accountId)
+}
+
+function normalizeRouteQueryValue(value: unknown) {
+  const rawValue = Array.isArray(value) ? value[0] : value
+  return typeof rawValue === 'string' ? rawValue.trim() : ''
+}
+
+function consumeSelectedEmailQuery() {
+  if (selectedEmailQueryConsumed) {
+    return
+  }
+
+  selectedEmailQueryConsumed = true
+
+  if (!import.meta.client || !route.query.selectedEmail) {
+    return
+  }
+
+  const nextQuery = {
+    ...route.query,
+  }
+
+  delete nextQuery.selectedEmail
+
+  void router.replace({
+    path: route.path,
+    query: nextQuery,
+    hash: route.hash,
+  })
 }
 
 function handleMailboxSelectionChange(
@@ -939,7 +1007,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
 
                     <NuxtLink
                       class="mail-list-item__detail"
-                      :to="`/account/${encodeURIComponent(selectedAccount.email)}/message/${encodeURIComponent(item.id)}`"
+                      :to="buildMailDetailRoute(item.id)"
                     >
                       <AButton type="link">查看详情</AButton>
                     </NuxtLink>
