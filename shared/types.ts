@@ -5,12 +5,25 @@ export interface ApiEnvelope<T> {
   data: T | null
 }
 
+export const ACCOUNT_TAG_COLORS = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'gray',
+] as const
+
+export type AccountTagColor = (typeof ACCOUNT_TAG_COLORS)[number]
+
 export interface AccountListItem {
   id: number
   email: string
   password: string
   clientId: string
   refreshToken: string
+  tagColor: AccountTagColor | null
   hasRefreshToken: boolean
   hasAccessToken: boolean
   tokenExpires: string | null

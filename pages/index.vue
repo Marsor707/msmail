@@ -15,12 +15,25 @@ import Modal from 'ant-design-vue/es/modal'
 import { formatAccountImportLine } from '~/shared/account-format'
 import type {
   AccountListItem,
+  AccountTagColor,
   ApiEnvelope,
   ImportAccountsResult,
   MailSummary,
 } from '~/shared/types'
 
 const ACCOUNT_SEARCH_DEBOUNCE = 300
+const ACCOUNT_TAG_OPTIONS: Array<{
+  value: AccountTagColor
+  label: string
+}> = [
+  { value: 'red', label: '红色' },
+  { value: 'orange', label: '橙色' },
+  { value: 'yellow', label: '黄色' },
+  { value: 'green', label: '绿色' },
+  { value: 'blue', label: '蓝色' },
+  { value: 'purple', label: '紫色' },
+  { value: 'gray', label: '灰色' },
+]
 const route = useRoute()
 const router = useRouter()
 const importText = ref('')
@@ -33,12 +46,15 @@ const deletingId = ref<number | null>(null)
 const exportLoading = ref(false)
 const selectedAccountIds = ref<number[]>([])
 const selectedAccountId = ref<number | null>(null)
+const selectedTagFilter = ref<AccountTagColor | null>(null)
 const accountSearchInput = ref('')
 const accountSearchKeyword = ref('')
 const mailLimit = ref(20)
 const mailboxLoading = ref(false)
 const mailboxResponse = ref<ApiEnvelope<MailSummary[]>>(createSuccessEnvelope([]))
 const importFileInput = useTemplateRef<HTMLInputElement>('importFileInput')
+const tagFilterPopoverOpen = ref(false)
+const tagUpdatingId = ref<number | null>(null)
 
 const mailLimitOptions = [
   { value: 10, label: '最近 10 封' },
@@ -58,6 +74,10 @@ const accountListRequestUrl = computed(() => {
     params.set('keyword', accountSearchKeyword.value)
   }
 
+  if (selectedTagFilter.value) {
+    params.set('tagColor', selectedTagFilter.value)
+  }
+
   const queryString = params.toString()
   return queryString ? `/api/accounts?${queryString}` : '/api/accounts'
 })
@@ -70,7 +90,7 @@ const {
   'accounts',
   () => useApiRequest<AccountListItem[]>(accountListRequestUrl.value),
   {
-    watch: [accountSearchKeyword],
+    watch: [accountSearchKeyword, selectedTagFilter],
   },
 )
 
@@ -89,17 +109,41 @@ const canExportAccounts = computed(() => selectedAccountCount.value > 0 && !expo
 const selectedAccount = computed(
   () => accounts.value.find((account) => account.id === selectedAccountId.value) ?? null,
 )
+const selectedTagFilterOption = computed(() =>
+  getAccountTagOption(selectedTagFilter.value ?? null),
+)
 const selectedEmail = computed(() => selectedAccount.value?.email ?? '')
+const selectedAccountTagOption = computed(() =>
+  getAccountTagOption(selectedAccount.value?.tagColor ?? null),
+)
 const routeSelectedEmail = computed(() => normalizeRouteQueryValue(route.query.selectedEmail))
 const mails = computed(() => mailboxResponse.value.data ?? [])
 const mailErrorMessage = computed(() =>
   mailboxResponse.value.success === false ? mailboxResponse.value.message : '',
 )
+const accountEmptyDescription = computed(() => {
+  if (selectedTagFilter.value && accountSearchKeyword.value) {
+    return `没有找到匹配“${getAccountTagLabel(selectedTagFilter.value)}”标签和关键词的邮箱账号`
+  }
+
+  if (selectedTagFilter.value) {
+    return `没有找到已标记为“${getAccountTagLabel(selectedTagFilter.value)}”的邮箱账号`
+  }
+
+  if (accountSearchKeyword.value) {
+    return '没有找到匹配的邮箱账号'
+  }
+
+  return '当前还没有导入任何邮箱账号'
+})
 const accessibleAccountCount = computed(() =>
   accounts.value.filter((item) => item.hasAccessToken && isFutureDate(item.tokenExpires)).length,
 )
 const refreshableAccountCount = computed(() =>
   accounts.value.filter((item) => item.hasRefreshToken && !isFutureDate(item.tokenExpires)).length,
+)
+const selectedAccountTagUpdating = computed(() =>
+  selectedAccount.value ? tagUpdatingId.value === selectedAccount.value.id : false,
 )
 const currentTokenState = computed(() =>
   selectedAccount.value ? getTokenState(selectedAccount.value) : null,
@@ -381,6 +425,14 @@ function isAccountSelected(accountId: number) {
   return selectedAccountIdSet.value.has(accountId)
 }
 
+function getAccountTagOption(tagColor: AccountTagColor | null | undefined) {
+  return ACCOUNT_TAG_OPTIONS.find((item) => item.value === tagColor) ?? null
+}
+
+function getAccountTagLabel(tagColor: AccountTagColor | null | undefined) {
+  return getAccountTagOption(tagColor)?.label ?? '未设置'
+}
+
 function normalizeRouteQueryValue(value: unknown) {
   const rawValue = Array.isArray(value) ? value[0] : value
   return typeof rawValue === 'string' ? rawValue.trim() : ''
@@ -523,6 +575,47 @@ async function exportSelectedAccounts() {
   URL.revokeObjectURL(downloadUrl)
 
   message.success(`已导出 ${selectedAccountCount.value} 条账号`)
+}
+
+async function updateSelectedAccountTag(tagColor: AccountTagColor | null) {
+  const account = selectedAccount.value
+
+  if (!account || tagUpdatingId.value === account.id) {
+    return
+  }
+
+  const nextTagColor = account.tagColor === tagColor ? null : tagColor
+
+  if (account.tagColor === nextTagColor) {
+    return
+  }
+
+  tagUpdatingId.value = account.id
+
+  const response = await useApiRequest<AccountListItem>(`/api/accounts/tag/${account.id}`, {
+    method: 'PATCH',
+    body: {
+      tagColor: nextTagColor,
+    },
+  })
+
+  tagUpdatingId.value = null
+
+  if (!response.success || !response.data) {
+    message.error(response.message || '标签更新失败')
+    return
+  }
+
+  replaceAccountInList(response.data)
+
+  if (selectedTagFilter.value && response.data.tagColor !== selectedTagFilter.value) {
+    await refresh()
+  }
+}
+
+function updateTagFilter(tagColor: AccountTagColor | null) {
+  selectedTagFilter.value = tagColor
+  tagFilterPopoverOpen.value = false
 }
 
 function handleImportKeydown(event: KeyboardEvent) {
@@ -758,16 +851,84 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
           </AButton>
         </div>
 
-        <AInput
-          v-model:value="accountSearchInput"
-          allow-clear
-          class="workspace-sidebar__search"
-          placeholder="搜索邮箱账号"
-        >
-          <template #prefix>
-            <SearchOutlined />
-          </template>
-        </AInput>
+        <div class="workspace-sidebar__searchbar">
+          <AInput
+            v-model:value="accountSearchInput"
+            allow-clear
+            class="workspace-sidebar__search"
+            placeholder="搜索邮箱账号"
+          >
+            <template #prefix>
+              <SearchOutlined />
+            </template>
+          </AInput>
+
+          <APopover
+            v-model:open="tagFilterPopoverOpen"
+            trigger="click"
+            placement="bottomRight"
+          >
+            <template #content>
+              <div class="workspace-sidebar__tag-filter-menu" role="listbox" aria-label="按标签筛选邮箱">
+                <button
+                  type="button"
+                  :class="[
+                    'workspace-sidebar__tag-filter-option',
+                    {
+                      'workspace-sidebar__tag-filter-option--active': selectedTagFilter === null,
+                    },
+                  ]"
+                  :aria-pressed="selectedTagFilter === null"
+                  title="全部标签"
+                  aria-label="全部标签"
+                  @click="updateTagFilter(null)"
+                >
+                  <span
+                    class="workspace-sidebar__tag-filter-swatch workspace-sidebar__tag-filter-swatch--all"
+                  />
+                </button>
+
+                <button
+                  v-for="tag in ACCOUNT_TAG_OPTIONS"
+                  :key="tag.value"
+                  type="button"
+                  :class="[
+                    'workspace-sidebar__tag-filter-option',
+                    {
+                      'workspace-sidebar__tag-filter-option--active': selectedTagFilter === tag.value,
+                    },
+                  ]"
+                  :aria-pressed="selectedTagFilter === tag.value"
+                  :title="tag.label"
+                  :aria-label="tag.label"
+                  @click="updateTagFilter(tag.value)"
+                >
+                  <span
+                    class="workspace-sidebar__tag-filter-swatch mailbox-overview__tag-option-swatch"
+                    :class="`mailbox-overview__tag-option-swatch--${tag.value}`"
+                  />
+                </button>
+              </div>
+            </template>
+
+            <button
+              type="button"
+              class="workspace-sidebar__tag-trigger"
+              aria-haspopup="listbox"
+              :aria-label="selectedTagFilterOption ? `当前筛选：${selectedTagFilterOption.label}` : '按标签筛选邮箱'"
+              :title="selectedTagFilterOption ? `当前筛选：${selectedTagFilterOption.label}` : '全部标签'"
+            >
+              <span
+                :class="[
+                  'workspace-sidebar__tag-filter-swatch',
+                  selectedTagFilterOption
+                    ? ['mailbox-overview__tag-option-swatch', `mailbox-overview__tag-option-swatch--${selectedTagFilterOption.value}`]
+                    : 'workspace-sidebar__tag-filter-swatch--all',
+                ]"
+              />
+            </button>
+          </APopover>
+        </div>
 
         <AAlert
           v-if="accountErrorMessage"
@@ -785,7 +946,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
 
           <AEmpty
             v-else-if="accounts.length === 0"
-            :description="accountSearchKeyword ? '没有找到匹配的邮箱账号' : '当前还没有导入任何邮箱账号'"
+            :description="accountEmptyDescription"
           >
             <AButton type="primary" @click="openImportModal">
               <template #icon>
@@ -828,7 +989,20 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
                     />
 
                     <div class="mailbox-list__item-identity">
-                      <strong>{{ account.email }}</strong>
+                      <div class="mailbox-list__item-identity-head">
+                        <strong>{{ account.email }}</strong>
+                        <span
+                          v-if="account.tagColor"
+                          :class="[
+                            'account-tag-dot',
+                            'mailbox-overview__tag-option-swatch',
+                            `mailbox-overview__tag-option-swatch--${account.tagColor}`,
+                          ]"
+                          :aria-label="`标签：${getAccountTagLabel(account.tagColor)}`"
+                          :title="`标签：${getAccountTagLabel(account.tagColor)}`"
+                        >
+                        </span>
+                      </div>
                       <span class="table-cell__subtext">创建于 {{ formatDate(account.createdAt) }}</span>
                     </div>
                   </div>
@@ -884,20 +1058,57 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
           <template v-if="selectedAccount">
             <div class="mailbox-overview__header">
               <div class="mailbox-overview__header-main">
-                <ATypographyText type="secondary">
-                  当前邮箱
-                </ATypographyText>
-                <ATypographyTitle :level="2" style="margin: 0">
-                  {{ selectedAccount.email }}
-                </ATypographyTitle>
+                <div class="mailbox-overview__title-row">
+                  <ATypographyTitle :level="2" style="margin: 0">
+                    {{ selectedAccount.email }}
+                  </ATypographyTitle>
+                  <span
+                    v-if="selectedAccountTagOption"
+                    :class="[
+                      'mailbox-overview__current-tag',
+                      'mailbox-overview__tag-option-swatch',
+                      `mailbox-overview__tag-option-swatch--${selectedAccountTagOption.value}`,
+                    ]"
+                    :aria-label="`当前标签：${selectedAccountTagOption.label}`"
+                    :title="`当前标签：${selectedAccountTagOption.label}`"
+                  >
+                  </span>
+                </div>
               </div>
 
-              <AButton :loading="mailboxLoading" @click="reloadMailboxMessages">
-                <template #icon>
-                  <ReloadOutlined />
-                </template>
-                刷新邮件
-              </AButton>
+              <div class="mailbox-overview__header-actions">
+                <div class="mailbox-overview__tag-picker">
+                  <button
+                    v-for="tag in ACCOUNT_TAG_OPTIONS"
+                    :key="tag.value"
+                    type="button"
+                    :class="[
+                      'mailbox-overview__tag-option',
+                      `mailbox-overview__tag-option--${tag.value}`,
+                      {
+                        'mailbox-overview__tag-option--active': selectedAccount?.tagColor === tag.value,
+                      },
+                    ]"
+                    :disabled="selectedAccountTagUpdating"
+                    :aria-pressed="selectedAccount?.tagColor === tag.value"
+                    :title="selectedAccount?.tagColor === tag.value ? `清除${tag.label}标签` : `标记为${tag.label}`"
+                    :aria-label="selectedAccount?.tagColor === tag.value ? `清除${tag.label}标签` : `标记为${tag.label}`"
+                    @click="updateSelectedAccountTag(tag.value)"
+                  >
+                    <span
+                      class="mailbox-overview__tag-option-swatch"
+                      :class="`mailbox-overview__tag-option-swatch--${tag.value}`"
+                    />
+                  </button>
+                </div>
+
+                <AButton class="mailbox-overview__refresh-button" :loading="mailboxLoading" @click="reloadMailboxMessages">
+                  <template #icon>
+                    <ReloadOutlined />
+                  </template>
+                  刷新邮件
+                </AButton>
+              </div>
             </div>
 
             <div class="mailbox-overview__grid">

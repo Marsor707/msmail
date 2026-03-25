@@ -1,8 +1,10 @@
 import type {
+  AccountTagColor,
   AccountListItem,
   ImportAccountsResult,
   ImportLineError,
 } from '~/shared/types'
+import { ACCOUNT_TAG_COLORS } from '~/shared/types'
 import {
   ACCOUNT_IMPORT_SEPARATOR,
   formatAccountImportLine,
@@ -12,6 +14,7 @@ import { prisma } from '~/server/utils/prisma'
 
 interface ListAccountsOptions {
   keyword?: string
+  tagColor?: AccountTagColor
 }
 
 interface AccountRecord {
@@ -20,6 +23,7 @@ interface AccountRecord {
   password: string
   clientId: string
   refreshToken: string
+  tagColor: string | null
   accessToken: string | null
   tokenExpires: Date | null
   createdAt: Date
@@ -116,14 +120,22 @@ export async function importAccountsFromText(rawText: string) {
 
 export async function listAccounts(options: ListAccountsOptions = {}) {
   const keyword = options.keyword?.trim()
+  const tagColor = normalizeAccountTagColor(options.tagColor)
   const accounts = await prisma.account.findMany({
-    where: keyword
-      ? {
-          email: {
-            contains: keyword,
-          },
-        }
-      : undefined,
+    where: {
+      ...(keyword
+        ? {
+            email: {
+              contains: keyword,
+            },
+          }
+        : {}),
+      ...(tagColor
+        ? {
+            tagColor,
+          }
+        : {}),
+    },
     orderBy: {
       createdAt: 'asc',
     },
@@ -207,8 +219,37 @@ export async function deleteAccountById(id: number) {
   return { id }
 }
 
+export async function updateAccountTagById(id: number, tagColor: AccountTagColor | null) {
+  const existing = await prisma.account.findUnique({
+    where: { id },
+  })
+
+  if (!existing) {
+    throw appError(404, 'ACCOUNT_NOT_FOUND', '账号不存在')
+  }
+
+  const account = await prisma.account.update({
+    where: { id },
+    data: {
+      tagColor,
+    },
+  })
+
+  return toAccountListItem(account)
+}
+
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function normalizeAccountTagColor(value: string | null | undefined): AccountTagColor | null {
+  if (!value) {
+    return null
+  }
+
+  return ACCOUNT_TAG_COLORS.includes(value as AccountTagColor)
+    ? (value as AccountTagColor)
+    : null
 }
 
 function toAccountListItem(account: AccountRecord): AccountListItem {
@@ -218,6 +259,7 @@ function toAccountListItem(account: AccountRecord): AccountListItem {
     password: account.password,
     clientId: account.clientId,
     refreshToken: account.refreshToken,
+    tagColor: normalizeAccountTagColor(account.tagColor),
     hasRefreshToken: Boolean(account.refreshToken),
     hasAccessToken: Boolean(account.accessToken),
     tokenExpires: account.tokenExpires?.toISOString() ?? null,

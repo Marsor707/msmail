@@ -13,6 +13,7 @@ model Account {
   password     String
   clientId     String
   refreshToken String
+  tagColor     String?
   accessToken  String?
   tokenExpires DateTime?
   createdAt    DateTime @default(now())

@@ -12,6 +12,7 @@ import Form from 'ant-design-vue/es/form'
 import Input from 'ant-design-vue/es/input'
 import Layout from 'ant-design-vue/es/layout'
 import List from 'ant-design-vue/es/list'
+import Popover from 'ant-design-vue/es/popover'
 import Result from 'ant-design-vue/es/result'
 import Row from 'ant-design-vue/es/row'
 import Select from 'ant-design-vue/es/select'
@@ -37,6 +38,7 @@ const components = [
   Input,
   Layout,
   List,
+  Popover,
   Result,
   Row,
   Select,
