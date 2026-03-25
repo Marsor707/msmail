@@ -112,6 +112,9 @@ const selectedAccount = computed(
 const selectedTagFilterOption = computed(() =>
   getAccountTagOption(selectedTagFilter.value ?? null),
 )
+const hasActiveAccountFilters = computed(() =>
+  Boolean(selectedTagFilter.value || accountSearchKeyword.value),
+)
 const selectedEmail = computed(() => selectedAccount.value?.email ?? '')
 const selectedAccountTagOption = computed(() =>
   getAccountTagOption(selectedAccount.value?.tagColor ?? null),
@@ -884,7 +887,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
                   @click="updateTagFilter(null)"
                 >
                   <span
-                    class="workspace-sidebar__tag-filter-swatch workspace-sidebar__tag-filter-swatch--all"
+                    class="workspace-sidebar__tag-filter-swatch workspace-sidebar__tag-filter-swatch--empty"
                   />
                 </button>
 
@@ -913,7 +916,12 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
 
             <button
               type="button"
-              class="workspace-sidebar__tag-trigger"
+              :class="[
+                'workspace-sidebar__tag-trigger',
+                {
+                  'workspace-sidebar__tag-trigger--filtered': selectedTagFilterOption,
+                },
+              ]"
               aria-haspopup="listbox"
               :aria-label="selectedTagFilterOption ? `当前筛选：${selectedTagFilterOption.label}` : '按标签筛选邮箱'"
               :title="selectedTagFilterOption ? `当前筛选：${selectedTagFilterOption.label}` : '全部标签'"
@@ -923,7 +931,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
                   'workspace-sidebar__tag-filter-swatch',
                   selectedTagFilterOption
                     ? ['mailbox-overview__tag-option-swatch', `mailbox-overview__tag-option-swatch--${selectedTagFilterOption.value}`]
-                    : 'workspace-sidebar__tag-filter-swatch--all',
+                    : 'workspace-sidebar__tag-filter-swatch--empty',
                 ]"
               />
             </button>
@@ -948,7 +956,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
             v-else-if="accounts.length === 0"
             :description="accountEmptyDescription"
           >
-            <AButton type="primary" @click="openImportModal">
+            <AButton v-if="!hasActiveAccountFilters" type="primary" @click="openImportModal">
               <template #icon>
                 <UploadOutlined />
               </template>
