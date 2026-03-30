@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { assertExternalApiKey } from '~/server/utils/external-auth'
 import { defineApiHandler, appError } from '~/server/utils/api'
-import { listAccountMessages } from '~/server/utils/microsoft-graph'
+import { listAccountMessages } from '~/server/utils/mail-provider'
 
 const querySchema = z.object({
   email: z.string().email('邮箱格式不合法'),

@@ -17,7 +17,9 @@
     "@prisma/client": "6",
     "ant-design-vue": "^4.2.6",
     "dotenv": "latest",
+    "imapflow": "^1.2.18",
     "isomorphic-dompurify": "latest",
+    "mailparser": "^3.9.6",
     "nuxt": "latest",
     "zod": "latest"
   },

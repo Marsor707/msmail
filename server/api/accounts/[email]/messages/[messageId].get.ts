@@ -1,5 +1,5 @@
 import { defineApiHandler, appError } from '~/server/utils/api'
-import { getAccountMessageDetail } from '~/server/utils/microsoft-graph'
+import { getAccountMessageDetail } from '~/server/utils/mail-provider'
 
 export default defineApiHandler(async (event) => {
   const email = decodeURIComponent(getRouterParam(event, 'email') || '')

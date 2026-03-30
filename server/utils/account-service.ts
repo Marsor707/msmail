@@ -3,8 +3,9 @@ import type {
   AccountListItem,
   ImportAccountsResult,
   ImportLineError,
+  MailProtocol,
 } from '~/shared/types'
-import { ACCOUNT_TAG_COLORS } from '~/shared/types'
+import { ACCOUNT_TAG_COLORS, MAIL_PROTOCOLS } from '~/shared/types'
 import {
   ACCOUNT_IMPORT_SEPARATOR,
   formatAccountImportLine,
@@ -23,6 +24,7 @@ interface AccountRecord {
   password: string
   clientId: string
   refreshToken: string
+  mailProtocol: string
   tagColor: string | null
   accessToken: string | null
   tokenExpires: Date | null
@@ -30,7 +32,7 @@ interface AccountRecord {
   updatedAt: Date
 }
 
-export async function importAccountsFromText(rawText: string) {
+export async function importAccountsFromText(rawText: string, mailProtocol: MailProtocol) {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -90,6 +92,7 @@ export async function importAccountsFromText(rawText: string) {
         password,
         clientId,
         refreshToken,
+        mailProtocol,
         accessToken: null,
         tokenExpires: null,
       },
@@ -98,6 +101,7 @@ export async function importAccountsFromText(rawText: string) {
         password,
         clientId,
         refreshToken,
+        mailProtocol,
       },
     })
 
@@ -250,6 +254,12 @@ function normalizeAccountTagColor(value: string | null | undefined): AccountTagC
   return ACCOUNT_TAG_COLORS.includes(value as AccountTagColor)
     ? (value as AccountTagColor)
     : null
+}
+
+export function normalizeMailProtocol(value: string | null | undefined): MailProtocol {
+  return MAIL_PROTOCOLS.includes(value as MailProtocol)
+    ? (value as MailProtocol)
+    : 'graph'
 }
 
 function toAccountListItem(account: AccountRecord): AccountListItem {

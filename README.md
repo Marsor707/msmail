@@ -6,16 +6,18 @@
 
 > [!IMPORTANT]
 > 当前版本**不负责 OAuth 授权申请流程**，也**不提供发信能力**。
-> 使用前请自行准备已具备 `offline_access` 与 `Mail.Read` 权限的 `client_id` 和 `refresh_token`。
+> 使用前请自行准备可用于 `Graph` 或 `IMAP OAuth2` 的 `client_id` 和 `refresh_token`。
 
 ## 功能概览
 
 - 批量导入邮箱账号，支持文本粘贴和本地 TXT 文件导入
+- 导入时可选择 `Graph` 或 `IMAP` 收件协议
 - 搜索、勾选导出、删除本地账号配置
 - 自动缓存并刷新 Microsoft Graph `access_token`
 - 展示账号可读状态、最近更新时间、已读未读等概览信息
 - 查看指定邮箱最近邮件列表
 - 查看邮件详情，支持 HTML / 纯文本正文展示
+- `IMAP` 协议下查看详情时自动标记已读
 - 提供带 `x-api-key` 鉴权的对外查询接口，便于其他系统按邮箱读取邮件
 
 导入格式固定为每行一条：
@@ -23,6 +25,8 @@
 ```txt
 email----password----client_id----refresh_token
 ```
+
+协议不写进 TXT 文本，而是在导入弹窗中统一选择；当前批次账号都会写入所选协议。
 
 ## 产品截图
 
@@ -47,6 +51,7 @@ email----password----client_id----refresh_token
 - 服务端：Nitro Server API
 - 数据访问：Prisma
 - 默认数据库：SQLite
+- 收件协议：Microsoft Graph、IMAP + OAuth2(XOAUTH2)
 - 参数校验：Zod
 - 内容安全：DOMPurify
 
@@ -71,6 +76,9 @@ DATABASE_URL="file:./data/mailbox.db"
 APP_API_KEY="please-change-me"
 MS_TOKEN_ENDPOINT="https://login.microsoftonline.com/common/oauth2/v2.0/token"
 MS_GRAPH_SCOPE="offline_access Mail.Read"
+MS_IMAP_SCOPE="https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
+MS_IMAP_HOST="outlook.office365.com"
+MS_IMAP_PORT="993"
 ```
 
 说明：
@@ -79,6 +87,8 @@ MS_GRAPH_SCOPE="offline_access Mail.Read"
 - `APP_API_KEY` 用于保护对外查询接口，开源部署时务必替换
 - `MS_TOKEN_ENDPOINT` 默认为微软公共租户 token 地址；如你使用自定义租户，可按需覆盖
 - `MS_GRAPH_SCOPE` 默认要求 `offline_access Mail.Read`
+- `MS_IMAP_SCOPE` 默认要求 `https://outlook.office.com/IMAP.AccessAsUser.All offline_access`
+- `MS_IMAP_HOST` / `MS_IMAP_PORT` 为 Outlook IMAP 服务地址，当前默认只读取 `INBOX`
 
 ### 3. 初始化数据库
 
@@ -173,6 +183,12 @@ curl "http://localhost:3000/api/external/emails/detail?email=ops-team@contoso.te
 
 - `email`：目标邮箱地址
 - `messageId`：来自列表接口返回结果中的邮件 `id`
+
+补充说明：
+
+- `Graph` 账号：详情接口保持只读
+- `IMAP` 账号：详情接口会在读取成功后自动标记已读
+- `IMAP` 一期只覆盖 `INBOX`
 
 ## 安全说明
 

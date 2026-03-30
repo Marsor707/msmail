@@ -18,6 +18,7 @@ import type {
   AccountTagColor,
   ApiEnvelope,
   ImportAccountsResult,
+  MailProtocol,
   MailSummary,
 } from '~/shared/types'
 
@@ -34,9 +35,18 @@ const ACCOUNT_TAG_OPTIONS: Array<{
   { value: 'purple', label: '紫色' },
   { value: 'gray', label: '灰色' },
 ]
+const MAIL_PROTOCOL_OPTIONS: Array<{
+  value: MailProtocol
+  label: string
+  description: string
+}> = [
+  { value: 'graph', label: 'Graph', description: '保持当前微软 Graph 读取逻辑' },
+  { value: 'imap', label: 'IMAP', description: '通过 OAuth2 + IMAP 读取 INBOX' },
+]
 const route = useRoute()
 const router = useRouter()
 const importText = ref('')
+const importMailProtocol = ref<MailProtocol>('graph')
 const importLoading = ref(false)
 const importError = ref('')
 const importModalOpen = ref(false)
@@ -352,6 +362,7 @@ function openImportModal() {
   importError.value = ''
   importResult.value = null
   importResultModalOpen.value = false
+  importMailProtocol.value = 'graph'
   importModalOpen.value = true
 }
 
@@ -483,6 +494,7 @@ async function importAccounts(text: string) {
     method: 'POST',
     body: {
       text,
+      mailProtocol: importMailProtocol.value,
     },
   })
 
@@ -495,6 +507,7 @@ async function importAccounts(text: string) {
 
   importResult.value = response.data
   importText.value = ''
+  importMailProtocol.value = 'graph'
   importLoading.value = false
   importModalOpen.value = false
   importResultModalOpen.value = true
@@ -1304,12 +1317,28 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
               每行 1 条，格式固定：
               <code>email----password----client_id----refresh_token</code>
             </p>
+            <p>当前批次账号将统一写入所选协议；IMAP 一期只读取 INBOX。</p>
             <p>支持直接粘贴文本，或选择本地 TXT 文件后自动导入。</p>
           </div>
         </template>
       </AAlert>
 
       <AForm layout="vertical" style="margin-top: 16px">
+        <AFormItem label="收件协议">
+          <ASelect
+            v-model:value="importMailProtocol"
+            :options="MAIL_PROTOCOL_OPTIONS"
+            :disabled="importLoading"
+          >
+            <template #option="{ label, description }">
+              <div class="import-protocol-option">
+                <strong>{{ label }}</strong>
+                <span class="table-cell__subtext">{{ description }}</span>
+              </div>
+            </template>
+          </ASelect>
+        </AFormItem>
+
         <AFormItem label="导入内容">
           <ATextarea
             v-model:value="importText"

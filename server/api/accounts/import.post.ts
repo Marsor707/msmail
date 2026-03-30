@@ -1,9 +1,11 @@
 import { z } from 'zod'
+import { MAIL_PROTOCOLS } from '~/shared/types'
 import { defineApiHandler, appError } from '~/server/utils/api'
 import { importAccountsFromText } from '~/server/utils/account-service'
 
 const bodySchema = z.object({
   text: z.string().trim().min(1, '导入内容不能为空'),
+  mailProtocol: z.enum(MAIL_PROTOCOLS).default('graph'),
 })
 
 export default defineApiHandler(async (event) => {
@@ -14,5 +16,5 @@ export default defineApiHandler(async (event) => {
     throw appError(400, 'INVALID_BODY', result.error.issues[0]?.message || '请求参数不合法')
   }
 
-  return importAccountsFromText(result.data.text)
+  return importAccountsFromText(result.data.text, result.data.mailProtocol)
 })

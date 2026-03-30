@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineApiHandler, appError } from '~/server/utils/api'
-import { getAccountMessageDetail } from '~/server/utils/microsoft-graph'
+import { getAccountMessageDetail } from '~/server/utils/mail-provider'
 
 const querySchema = z.object({
   email: z.string().email('邮箱格式不合法'),

@@ -5,6 +5,10 @@ export interface ApiEnvelope<T> {
   data: T | null
 }
 
+export const MAIL_PROTOCOLS = ['graph', 'imap'] as const
+
+export type MailProtocol = (typeof MAIL_PROTOCOLS)[number]
+
 export const ACCOUNT_TAG_COLORS = [
   'red',
   'orange',

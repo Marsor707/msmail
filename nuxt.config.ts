@@ -35,6 +35,11 @@ export default defineNuxtConfig({
       process.env.MS_TOKEN_ENDPOINT ??
       'https://login.microsoftonline.com/common/oauth2/v2.0/token',
     msGraphScope: process.env.MS_GRAPH_SCOPE ?? 'offline_access Mail.Read',
+    msImapScope:
+      process.env.MS_IMAP_SCOPE ??
+      'https://outlook.office.com/IMAP.AccessAsUser.All offline_access',
+    msImapHost: process.env.MS_IMAP_HOST ?? 'outlook.office365.com',
+    msImapPort: Number(process.env.MS_IMAP_PORT ?? '993'),
     public: {
       appName: '微软邮箱管理系统',
     },

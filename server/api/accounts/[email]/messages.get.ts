@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { defineApiHandler, appError } from '~/server/utils/api'
-import { listAccountMessages } from '~/server/utils/microsoft-graph'
+import { listAccountMessages } from '~/server/utils/mail-provider'
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
