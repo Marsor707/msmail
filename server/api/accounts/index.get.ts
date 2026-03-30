@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ACCOUNT_TAG_COLORS } from '~/shared/types'
 import { defineApiHandler, appError } from '~/server/utils/api'
 import { listAccounts } from '~/server/utils/account-service'
+import { isReadmeScreenshotMode, listReadmeDemoAccounts } from '~/server/utils/readme-demo'
 
 const querySchema = z.object({
   keyword: z
@@ -23,6 +24,13 @@ export default defineApiHandler(async (event) => {
 
   if (!queryResult.success) {
     throw appError(400, 'INVALID_QUERY', queryResult.error.issues[0]?.message || '请求参数不合法')
+  }
+
+  if (isReadmeScreenshotMode()) {
+    return listReadmeDemoAccounts({
+      keyword: queryResult.data.keyword,
+      tagColor: queryResult.data.tagColor,
+    })
   }
 
   return listAccounts({

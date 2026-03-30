@@ -10,7 +10,8 @@
     "postinstall": "nuxt prepare",
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
-    "check": "nuxt typecheck"
+    "check": "nuxt typecheck",
+    "readme:screenshots": "node scripts/generate-readme-screenshots.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
