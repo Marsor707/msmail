@@ -38,10 +38,9 @@ const ACCOUNT_TAG_OPTIONS: Array<{
 const MAIL_PROTOCOL_OPTIONS: Array<{
   value: MailProtocol
   label: string
-  description: string
 }> = [
-  { value: 'graph', label: 'Graph', description: '保持当前微软 Graph 读取逻辑' },
-  { value: 'imap', label: 'IMAP', description: '通过 OAuth2 + IMAP 读取 INBOX' },
+  { value: 'graph', label: 'Graph' },
+  { value: 'imap', label: 'IMAP' },
 ]
 const route = useRoute()
 const router = useRouter()
@@ -1317,7 +1316,6 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
               每行 1 条，格式固定：
               <code>email----password----client_id----refresh_token</code>
             </p>
-            <p>当前批次账号将统一写入所选协议；IMAP 一期只读取 INBOX。</p>
             <p>支持直接粘贴文本，或选择本地 TXT 文件后自动导入。</p>
           </div>
         </template>
@@ -1329,14 +1327,7 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
             v-model:value="importMailProtocol"
             :options="MAIL_PROTOCOL_OPTIONS"
             :disabled="importLoading"
-          >
-            <template #option="{ label, description }">
-              <div class="import-protocol-option">
-                <strong>{{ label }}</strong>
-                <span class="table-cell__subtext">{{ description }}</span>
-              </div>
-            </template>
-          </ASelect>
+          />
         </AFormItem>
 
         <AFormItem label="导入内容">
