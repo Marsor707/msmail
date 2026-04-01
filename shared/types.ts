@@ -50,6 +50,17 @@ export interface ImportAccountsResult {
   errors: ImportLineError[]
 }
 
+export interface RefreshAccountFailure {
+  email: string
+  code: string
+  message: string
+}
+
+export interface RefreshExpiredAccountsResult {
+  refreshedAccounts: AccountListItem[]
+  failedAccounts: RefreshAccountFailure[]
+}
+
 export interface MailSummary {
   id: string
   subject: string

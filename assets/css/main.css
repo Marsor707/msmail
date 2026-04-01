@@ -240,15 +240,51 @@ code {
   border: 1px solid rgba(255, 255, 255, 0.92);
 }
 
+.workspace-sidebar__stat--actionable {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-sidebar__stat-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .workspace-sidebar__stat strong {
   font-size: 24px;
   line-height: 1;
 }
 
-.workspace-sidebar__stat span {
+.workspace-sidebar__stat-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.workspace-sidebar__stat-label span {
+  min-width: 0;
+}
+
+.workspace-sidebar__stat-action.ant-btn {
+  align-self: center;
+  flex-shrink: 0;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.workspace-sidebar__stat-action.ant-btn:not(:disabled):hover,
+.workspace-sidebar__stat-action.ant-btn:not(:disabled):focus-visible {
+  color: #1677ff;
+  background: rgba(22, 119, 255, 0.08);
 }
 
 .workspace-sidebar__toolbar {

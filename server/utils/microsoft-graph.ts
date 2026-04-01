@@ -2,6 +2,7 @@ import { useRuntimeConfig } from '#imports'
 import { appError } from '~/server/utils/api'
 import { prisma } from '~/server/utils/prisma'
 import type { MailDetail, MailSummary } from '~/shared/types'
+import type { MailProviderAccount } from '~/server/utils/mail-provider-types'
 import { refreshMicrosoftAccessToken, requestJson } from '~/server/utils/microsoft-oauth'
 
 interface GraphListResponse {
@@ -120,15 +121,10 @@ export async function getGraphAccountMessageDetail(email: string, messageId: str
   } satisfies MailDetail
 }
 
-export async function getValidAccessToken(email: string, forceRefresh = false) {
-  const account = await prisma.account.findUnique({
-    where: { email },
-  })
-
-  if (!account) {
-    throw appError(404, 'ACCOUNT_NOT_FOUND', '邮箱账号不存在')
-  }
-
+export async function refreshGraphAccountAccessToken(
+  account: Pick<MailProviderAccount, 'email' | 'clientId' | 'refreshToken' | 'accessToken' | 'tokenExpires'>,
+  forceRefresh = false,
+) {
   const now = Date.now()
   const refreshWindow = 5 * 60 * 1000
 
@@ -151,7 +147,7 @@ export async function getValidAccessToken(email: string, forceRefresh = false) {
   })
 
   await prisma.account.update({
-    where: { email },
+    where: { email: account.email },
     data: {
       accessToken: tokenResponse.accessToken,
       refreshToken: tokenResponse.refreshToken,
@@ -159,7 +155,30 @@ export async function getValidAccessToken(email: string, forceRefresh = false) {
     },
   })
 
+  account.accessToken = tokenResponse.accessToken
+  account.refreshToken = tokenResponse.refreshToken
+  account.tokenExpires = tokenResponse.expiresAt
+
   return tokenResponse.accessToken
+}
+
+export async function getValidAccessToken(email: string, forceRefresh = false) {
+  const account = await prisma.account.findUnique({
+    where: { email },
+    select: {
+      email: true,
+      clientId: true,
+      refreshToken: true,
+      accessToken: true,
+      tokenExpires: true,
+    },
+  })
+
+  if (!account) {
+    throw appError(404, 'ACCOUNT_NOT_FOUND', '邮箱账号不存在')
+  }
+
+  return refreshGraphAccountAccessToken(account, forceRefresh)
 }
 
 async function graphRequest<T>(url: string, accessToken: string) {

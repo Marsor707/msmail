@@ -3,6 +3,7 @@ import type {
   AccountTagColor,
   MailDetail,
   MailSummary,
+  RefreshExpiredAccountsResult,
 } from '~/shared/types'
 
 interface ReadmeDemoAccount extends AccountListItem {
@@ -209,4 +210,28 @@ export function getReadmeDemoMessageDetail(email: string, messageId: string) {
     toRecipients: [...matched.toRecipients],
     ccRecipients: [...matched.ccRecipients],
   }
+}
+
+export function refreshReadmeDemoAccounts(): RefreshExpiredAccountsResult {
+  const refreshedAt = new Date().toISOString()
+
+  return {
+    refreshedAccounts: README_DEMO_ACCOUNTS
+      .filter((account) => account.hasRefreshToken && (!account.hasAccessToken || !isFutureDate(account.tokenExpires)))
+      .map(({ mailbox: _mailbox, ...account }) => ({
+        ...account,
+        hasAccessToken: true,
+        tokenExpires: FUTURE_TOKEN_EXPIRES_AT,
+        updatedAt: refreshedAt,
+      })),
+    failedAccounts: [],
+  }
+}
+
+function isFutureDate(value: string | null) {
+  if (!value) {
+    return false
+  }
+
+  return new Date(value).getTime() > Date.now()
 }

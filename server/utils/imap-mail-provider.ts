@@ -120,7 +120,7 @@ async function withImapClient<T>(
   }
 }
 
-async function getValidImapAccessToken(account: MailProviderAccount, forceRefresh = false) {
+export async function getValidImapAccessToken(account: MailProviderAccount, forceRefresh = false) {
   const now = Date.now()
 
   if (

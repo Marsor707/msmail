@@ -20,6 +20,7 @@ import type {
   ImportAccountsResult,
   MailProtocol,
   MailSummary,
+  RefreshExpiredAccountsResult,
 } from '~/shared/types'
 
 const ACCOUNT_SEARCH_DEBOUNCE = 300
@@ -53,6 +54,7 @@ const importResultModalOpen = ref(false)
 const importResult = ref<ImportAccountsResult | null>(null)
 const deletingId = ref<number | null>(null)
 const exportLoading = ref(false)
+const refreshExpiredLoading = ref(false)
 const selectedAccountIds = ref<number[]>([])
 const selectedAccountId = ref<number | null>(null)
 const selectedTagFilter = ref<AccountTagColor | null>(null)
@@ -149,10 +151,10 @@ const accountEmptyDescription = computed(() => {
   return '当前还没有导入任何邮箱账号'
 })
 const accessibleAccountCount = computed(() =>
-  accounts.value.filter((item) => item.hasAccessToken && isFutureDate(item.tokenExpires)).length,
+  accounts.value.filter((item) => isDirectlyAccessibleAccount(item)).length,
 )
 const refreshableAccountCount = computed(() =>
-  accounts.value.filter((item) => item.hasRefreshToken && !isFutureDate(item.tokenExpires)).length,
+  accounts.value.filter((item) => isRefreshableAccount(item)).length,
 )
 const selectedAccountTagUpdating = computed(() =>
   selectedAccount.value ? tagUpdatingId.value === selectedAccount.value.id : false,
@@ -592,6 +594,35 @@ async function exportSelectedAccounts() {
   message.success(`已导出 ${selectedAccountCount.value} 条账号`)
 }
 
+async function refreshExpiredAccounts() {
+  if (refreshExpiredLoading.value || !refreshableAccountCount.value) {
+    return
+  }
+
+  refreshExpiredLoading.value = true
+
+  const response = await useApiRequest<RefreshExpiredAccountsResult>('/api/accounts/refresh-expired', {
+    method: 'POST',
+  })
+
+  refreshExpiredLoading.value = false
+
+  if (!response.success || !response.data) {
+    if (import.meta.client) {
+      console.warn('[refresh-expired-accounts] request failed:', response.message)
+    }
+    return
+  }
+
+  response.data.refreshedAccounts.forEach((account) => {
+    replaceAccountInList(account)
+  })
+
+  if (import.meta.client && response.data.failedAccounts.length) {
+    console.warn('[refresh-expired-accounts] partial failures:', response.data.failedAccounts)
+  }
+}
+
 async function updateSelectedAccountTag(tagColor: AccountTagColor | null) {
   const account = selectedAccount.value
 
@@ -741,8 +772,16 @@ function isFutureDate(value: string | null) {
   return new Date(value).getTime() > Date.now()
 }
 
+function isDirectlyAccessibleAccount(account: AccountListItem) {
+  return account.hasAccessToken && isFutureDate(account.tokenExpires)
+}
+
+function isRefreshableAccount(account: AccountListItem) {
+  return account.hasRefreshToken && (!account.hasAccessToken || !isFutureDate(account.tokenExpires))
+}
+
 function getTokenState(account: AccountListItem) {
-  if (account.hasAccessToken && isFutureDate(account.tokenExpires)) {
+  if (isDirectlyAccessibleAccount(account)) {
     return {
       label: '可直接读取',
       color: 'success',
@@ -752,7 +791,7 @@ function getTokenState(account: AccountListItem) {
     }
   }
 
-  if (account.hasRefreshToken) {
+  if (isRefreshableAccount(account)) {
     return {
       label: '待刷新',
       color: 'warning',
@@ -830,15 +869,36 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
           <div class="workspace-sidebar__stats">
             <div class="workspace-sidebar__stat">
               <strong>{{ accounts.length }}</strong>
-              <span>邮箱账号</span>
+              <div class="workspace-sidebar__stat-label">
+                <span>邮箱账号</span>
+              </div>
             </div>
             <div class="workspace-sidebar__stat">
               <strong>{{ accessibleAccountCount }}</strong>
-              <span>可直接读取</span>
+              <div class="workspace-sidebar__stat-label">
+                <span>可直接读取</span>
+              </div>
             </div>
-            <div class="workspace-sidebar__stat">
-              <strong>{{ refreshableAccountCount }}</strong>
-              <span>待刷新</span>
+            <div class="workspace-sidebar__stat workspace-sidebar__stat--actionable">
+              <div class="workspace-sidebar__stat-content">
+                <strong>{{ refreshableAccountCount }}</strong>
+                <div class="workspace-sidebar__stat-label">
+                  <span>待刷新</span>
+                </div>
+              </div>
+              <AButton
+                type="text"
+                size="small"
+                class="workspace-sidebar__stat-action"
+                :disabled="!refreshableAccountCount || pending"
+                :loading="refreshExpiredLoading"
+                aria-label="刷新全部待刷新账号 Token"
+                @click="refreshExpiredAccounts"
+              >
+                <template v-if="!refreshExpiredLoading" #icon>
+                  <ReloadOutlined />
+                </template>
+              </AButton>
             </div>
           </div>
         </div>
