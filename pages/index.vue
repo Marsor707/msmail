@@ -127,9 +127,6 @@ const hasActiveAccountFilters = computed(() =>
   Boolean(selectedTagFilter.value || accountSearchKeyword.value),
 )
 const selectedEmail = computed(() => selectedAccount.value?.email ?? '')
-const selectedAccountTagOption = computed(() =>
-  getAccountTagOption(selectedAccount.value?.tagColor ?? null),
-)
 const routeSelectedEmail = computed(() => normalizeRouteQueryValue(route.query.selectedEmail))
 const mails = computed(() => mailboxResponse.value.data ?? [])
 const mailErrorMessage = computed(() =>
@@ -1138,22 +1135,9 @@ function createSuccessEnvelope<T>(data: T): ApiEnvelope<T> {
           <template v-if="selectedAccount">
             <div class="mailbox-overview__header">
               <div class="mailbox-overview__header-main">
-                <div class="mailbox-overview__title-row">
-                  <ATypographyTitle :level="2" style="margin: 0">
-                    {{ selectedAccount.email }}
-                  </ATypographyTitle>
-                  <span
-                    v-if="selectedAccountTagOption"
-                    :class="[
-                      'mailbox-overview__current-tag',
-                      'mailbox-overview__tag-option-swatch',
-                      `mailbox-overview__tag-option-swatch--${selectedAccountTagOption.value}`,
-                    ]"
-                    :aria-label="`当前标签：${selectedAccountTagOption.label}`"
-                    :title="`当前标签：${selectedAccountTagOption.label}`"
-                  >
-                  </span>
-                </div>
+                <ATypographyTitle :level="2" style="margin: 0">
+                  {{ selectedAccount.email }}
+                </ATypographyTitle>
               </div>
 
               <div class="mailbox-overview__header-actions">
